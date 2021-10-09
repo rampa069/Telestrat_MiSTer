@@ -46,7 +46,7 @@ module wd1793 #(parameter RWMODE=0, EDSK=1)
 
 	// SD access (RWMODE == 1)
 	input        img_mounted, // signaling that new image has been mounted
-	input [20:0] img_size,    // size of image in bytes. 1MB MAX!
+	input [19:0] img_size,    // size of image in bytes. 1MB MAX!
 	output       prepare,
 	output[31:0] sd_lba,
 	output reg   sd_rd,
@@ -59,10 +59,10 @@ module wd1793 #(parameter RWMODE=0, EDSK=1)
 
 	// RAM access (RWMODE == 0)
 	input        input_active,
-	input [20:0] input_addr,
+	input [19:0] input_addr,
 	input  [7:0] input_data,
 	input        input_wr,
-	output[20:0] buff_addr,	  // buffer RAM address
+	output[19:0] buff_addr,	  // buffer RAM address
 	output       buff_read,	  // buffer RAM read enable
 	input  [7:0] buff_din     // buffer RAM data input
 );
@@ -78,15 +78,15 @@ assign dout      = q;
 assign drq       = s_drq;
 assign busy      = s_busy;
 assign intrq     = s_intrq;
-assign sd_lba    = scan_active ? scan_addr[20:9] : buff_a[20:9] + sd_block;
+assign sd_lba    = scan_active ? scan_addr[19:9] : buff_a[19:9] + sd_block;
 assign prepare   = EDSK ? scan_active : img_mounted;
-assign buff_addr = {buff_a[20:9], 9'd0} + byte_addr;
+assign buff_addr = {buff_a[19:9], 9'd0} + byte_addr;
 assign buff_read = ((addr == A_DATA) && buff_rd);
 
 reg   [7:0] sectors_per_track, edsk_spt = 0;
 wire [10:0] sector_size = 11'd128 << wd_size_code;
 reg  [10:0] byte_addr;
-reg  [20:0] buff_a;
+reg  [19:0] buff_a;
 reg   [1:0] wd_size_code;
 
 wire  [7:0] buff_dout;
@@ -116,9 +116,9 @@ generate
 endgenerate
 
 reg         var_size  = 0;
-reg  [20:0] disk_size;
+reg  [19:0] disk_size;
 reg         layout_r;
-wire [20:0] hs  = (layout_r & side) ? disk_size >> 1 : 21'd0;
+wire [19:0] hs  = (layout_r & side) ? disk_size >> 1 : 20'd0;
 wire  [7:0] dts = {disk_track[6:0], side} >> layout_r;
 always @(posedge clk_sys) begin
 	case({var_size,size_code})
@@ -298,7 +298,7 @@ always @(posedge clk_sys) begin
 				scan_wr    <= 0;
 				sd_block   <= 0;
 			end
-			disk_size <= img_size[20:0];
+			disk_size <= img_size[19:0];
 			layout_r  <= layout;
 		end
 	end else begin
@@ -749,14 +749,14 @@ always @(posedge clk_sys) begin
 end
 
 reg        scan_active = 0;
-reg [20:0] scan_addr;
+reg [19:0] scan_addr;
 reg        scan_wr;
 
 reg  [1:0] edsk_sizecode = 0;      // sector size: 0=128K, 1=256K, 2=512K, 3=1024K
 reg        edsk_side = 0;          // Side number (0 or 1)
 reg  [6:0] edsk_track = 0;         // Track number
 reg  [7:0] edsk_sector = 0;        // Sector number 0..15
-reg [20:0] edsk_offset = 0;
+reg [19:0] edsk_offset = 0;
 reg  [7:0] edsk_trackf = 0, edsk_sidef = 0;
 
 reg [10:0] edsk_addr, edsk_start;
@@ -769,7 +769,7 @@ reg  [7:0] spt_size = 0;
 generate
 	if(EDSK) begin
 		wire [7:0] scan_data = RWMODE ? buff_dout : input_data;
-		reg [54:0] edsk[1992];
+		reg [53:0] edsk[1992];
 		reg  [7:0] spt[166];
 
 		reg  [7:0] spt_addr;
@@ -798,7 +798,7 @@ generate
 			reg  [7:0] crc2;
 			reg  [7:0] sectors;
 			reg [15:0] track_size, track_pos;
-			reg [20:0] offset, offset1;
+			reg [19:0] offset, offset1;
 			reg  [7:0] size_lo;
 			reg [10:0] secpos;
 			reg  [7:0] trackf, sidef;
@@ -813,7 +813,7 @@ generate
 
 			old_wr <= scan_wr;
 			if(scan_wr & ~old_wr & scan_active) begin
-				if((scan_addr[20:0] < 16) & (sig_pos[7:0] != scan_data)) var_size <= 0;
+				if((scan_addr[19:0] < 16) & (sig_pos[7:0] != scan_data)) var_size <= 0;
 				if(var_size) begin
 					if( scan_addr == 48) spt_size <= scan_data; else
 					if((scan_addr == 49) & (scan_data == 2)) spt_size <= spt_size << 1; else

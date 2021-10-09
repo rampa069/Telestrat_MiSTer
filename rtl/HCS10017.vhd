@@ -77,7 +77,7 @@ library ieee;
 -- 19 BLU         A13 22
 -- 20 GRN         RED 21
 
-entity ula is
+entity HCS10017 is
 port (
 	RESETn     :   in  std_logic;                     -- RESET master
 	CLK_4      :   out std_logic;                     -- 4 MHz internal
@@ -123,7 +123,7 @@ port (
 );
 end;
 
-architecture RTL of ula is
+architecture RTL of HCS10017 is
 
 	-- Signal CLOCK
 	signal CLK_24        : std_logic;                    -- CLOCK 24 MHz internal

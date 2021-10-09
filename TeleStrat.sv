@@ -207,7 +207,7 @@ localparam CONF_STR = {
 	"TeleStrat;;",
 	"S0,DSK,Mount Drive A:;",
 	"-;",
-	"O3,CART,Hyper Basic,StratOric;",
+	"O3,CART,HyperBasic,StratOric;",
 	"O7,Drive Write,Allow,Prohibit;",
 	"-;",
 	"ODE,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
@@ -225,6 +225,7 @@ localparam CONF_STR = {
 
 wire        clk_sys;
 wire        clk_acia;
+wire        clk_disk;
 wire        locked;
 
 
@@ -233,10 +234,12 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_sys),
-	.outclk_1(CLK_VIDEO),
+	.outclk_1(clk_disk),
 	.outclk_2(clk_acia),
 	.locked(locked)
 );
+
+assign CLK_VIDEO = clk_disk;
 
 reg        reset = 0;
 reg [16:0] clr_addr = 0;
@@ -271,7 +274,7 @@ wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din[1];
 wire        sd_buff_wr;
-wire        img_mounted;
+wire  [1:0] img_mounted;
 wire [31:0] img_size;
 wire        img_readonly;
 
@@ -287,7 +290,7 @@ reg  [31:0] status_out;
 wire [21:0] gamma_bus;
 wire        freeze_sync;
 
-hps_io #(.CONF_STR(CONF_STR)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -360,6 +363,7 @@ telestrat telestrat
 	.clk_in           (clk_sys),
 	.RESET            (reset),
 	.clk_acia         (clk_acia),
+	.clk_disk         (clk_disk),
 	.key_pressed      (ps2_key[9]),
 	.key_code         (ps2_key[7:0]),
 	.key_extended     (ps2_key[8]),
@@ -410,8 +414,9 @@ telestrat telestrat
 	.sd_din_strobe    (0)
 );
 
-reg fdd_ready = 0;
-always @(posedge clk_sys) if(img_mounted) fdd_ready <= |img_size;
+reg [1:0] fdd_ready = 0;
+always @(posedge clk_sys) if(img_mounted[0]) fdd_ready[0] <= |img_size;
+always @(posedge clk_sys) if(img_mounted[1]) fdd_ready[1] <= |img_size;
 
 reg rom = 0;
 always @(posedge clk_sys) if(reset) rom <= ~status[3];

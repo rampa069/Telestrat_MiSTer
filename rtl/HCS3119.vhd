@@ -21,8 +21,6 @@ ENTITY HCS3119 IS
 		CLK_SYS         : IN std_logic; -- 24 Mhz input clock
 		
 		-- Oric Expansion Port Signals
-		DI              : IN std_logic_vector(7 DOWNTO 0); -- 6502 Data Bus
- 
 		A               : IN std_logic_vector(15 DOWNTO 0); -- 6502 Address Bus
 		RnW             : IN std_logic; -- 6502 Read-/Write
 		nIRQ            : OUT std_logic; -- 6502 /IRQ
@@ -46,7 +44,6 @@ ENTITY HCS3119 IS
       CS4n               : OUT std_logic;
       CS5n               : OUT std_logic;
       CS6n               : OUT std_logic;
-		CSB0n              : OUT STD_LOGIC;
 		
 		--WD output
 		WD_CLK             : OUT std_logic;
@@ -75,6 +72,11 @@ ARCHITECTURE Behavioral OF HCS3119 IS
 	SIGNAL U16K : std_logic;
 	SIGNAL MAPn_INT : std_logic;
 	SIGNAL CS1793n_INT : std_logic;
+	SIGNAL WD_REn_INT  : std_logic;
+	SIGNAL WD_CSn_INT  : std_logic;
+	SIGNAL CS314n :std_logic;
+	SIGNAL CS318n :std_logic;
+	
 	SIGNAL EDGE_DETECT : STD_LOGIC_VECTOR(1 DOWNTO 0);
 
 begin
@@ -95,15 +97,20 @@ begin
 			MAPn_INT <= '0' when (PH2='1' and PA ="000" and A(15 downto 14) = "11") else '1' ;
 			MAPn <= MAPn_INT;
          CS1793n <= CS1793n_INT;
-			
-			WD_REn <= CS1793n_INT OR NOT RnW;
+			--
+			WD_REn_INT <= CS1793n_INT OR NOT RnW;
+			WD_REn <= WD_REn_INT; 
 			WD_WEn <= CS1793n_INT OR RnW;
-			
+			WD_CSn_INT <= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) = "00" ELSE '1';
+			WD_CSn <= WD_CSn_INT;
+			--
+
 			CS300n     <= '0' when A(7 downto 4) = "0000" AND IO = '0' else '1';
 			CS320n     <= '0' when A(7 downto 4) = "0010" AND IO = '0' else '1';
 			CS1793n_INT<= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) /= "11" ELSE '1';
 			CS310n     <= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) = "11" ELSE '1';
-			
+			CS314n     <= '0' WHEN A(7 DOWNTO 2) = "000101" AND IO = '0' ELSE '1';
+			CS318n     <= '0' WHEN A(7 DOWNTO 2) = "000110" AND IO = '0' ELSE '1';
 			
 			-- 
 			U16K <= '1' when A(15 downto 14) = "11" and MAPn_INT ='1'   else '0';

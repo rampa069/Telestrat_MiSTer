@@ -85,7 +85,8 @@ port (
 
 	CLK        :   in  std_logic;                     -- 24 MHz                       -- pin 07
 	PHI2       :   out std_logic;                     -- 1 MHz CPU & system           -- pin 14
-	PHI2_EN    :   out std_logic;                     -- 1 MHz clock enable pulse
+	PHI2_EN    :   out std_logic;                     -- 1 MHz clock enable pulse (rising)
+	PHI2_EN_N  :   out std_logic;                     -- 1 MHz clock enable pulse (falling)
 	RW         :   in  std_logic;                     -- R/W from CPU                 -- pin 27
 	MAPn       :   in  std_logic;                     -- MAP                          -- pin 26
 	DB         :   in  std_logic_vector( 7 downto 0); -- DATA BUS                     -- pin 18,34,5,13,12,11,17,8
@@ -221,6 +222,7 @@ begin
 	-- output assignments
 	PHI2         <= CLK_1_INT;
 	PHI2_EN      <= CLK_1_EN;
+   PHI2_EN_N    <= c(23);
 --	AD_RAM       <= AD_RAM_INT(15 downto 8);
 	CSIOn        <= CSIOn_INT;
 	CSROMn       <= CSROMn_INT;
@@ -450,7 +452,7 @@ begin
 		  lREG_STYLE <= (others=>'0');
 		  lREG_PAPER <= (others=>'0');
 	  elsif rising_edge(CLK_24) then
-			if (RELD_REG = '1' and isAttrib = '1' and BLANKINGn = '1') then
+			if (CLK_PIXEL_INT = '1' and RELD_REG = '1' and isAttrib = '1' and BLANKINGn = '1') then
 				case lREGHOLD(6 downto 3) is
 					when "0000" => lREG_INK   <= lREGHOLD(2 downto 0);
 					when "0001" => lREG_STYLE <= lREGHOLD(2 downto 0);

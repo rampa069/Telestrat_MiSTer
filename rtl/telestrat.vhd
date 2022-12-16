@@ -48,7 +48,6 @@ entity telestrat is
   port (
     CLK_IN            : in    std_logic;
 	 CLK_ACIA          : in    std_logic;
-	 CLK_DISK          : in    std_logic;
     RESET             : in    std_logic;
 	 key_pressed       : in    std_logic;
 	 key_extended      : in    std_logic;
@@ -57,11 +56,10 @@ entity telestrat is
     K7_TAPEIN         : in    std_logic;
     K7_TAPEOUT        : out   std_logic;
     K7_REMOTE         : out   std_logic;
-	 PSG_OUT           : out   std_logic_vector(9 downto 0);
-    PSG_OUT_A         : out   std_logic_vector(7 downto 0);
-    PSG_OUT_B         : out   std_logic_vector(7 downto 0);
-    PSG_OUT_C         : out   std_logic_vector(7 downto 0);
-	 STEREO            : in    std_logic;
+	 PSG_OUT           : out   unsigned(13 downto 0);
+    PSG_OUT_A         : out   unsigned(11 downto 0);
+    PSG_OUT_B         : out   unsigned(11 downto 0);
+    PSG_OUT_C         : out   unsigned(11 downto 0);
     VIDEO_R           : out   std_logic;
     VIDEO_G           : out   std_logic;
     VIDEO_B           : out   std_logic;
@@ -97,7 +95,7 @@ entity telestrat is
 	 sd_buff_addr:    in std_logic_vector (8 downto 0);
 	 sd_dout:         in std_logic_vector (7 downto 0);
 	 sd_din:          out std_logic_vector (7 downto 0);
-	 sd_dout_strobe:  in std_logic;
+	 sd_buff_wr:      in std_logic;
 	 sd_din_strobe:   in std_logic
 	 );
 end;
@@ -117,6 +115,7 @@ architecture RTL of telestrat is
     signal cpu_rw             : std_logic;
     signal via1_irq           : std_logic;
 	 signal via2_irq           : std_logic;
+	 signal cpu_irq            : std_logic;
       
 	-- VIA 1
 	SIGNAL via1_pa_out_oe : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -166,6 +165,7 @@ architecture RTL of telestrat is
 	SIGNAL FDC_DAL_1_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL FDC_DAL_2_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL FDC_DAL_3_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
+	SIGNAL FDD_PREPARE :STD_LOGIC;
 	SIGNAL DS0    : STD_LOGIC;
 	SIGNAL DS1    : STD_LOGIC;
 	SIGNAL DS2    : STD_LOGIC;
@@ -235,6 +235,7 @@ architecture RTL of telestrat is
 
 --	 signal lSRAM_D            : std_logic_vector(7 downto 0);
 	 signal ENA_1MHZ           : std_logic;
+	 signal ENA_1MHZ_N         : std_logic;
 	 --- ROM
     signal ROM_TELMON_DO   	: std_logic_vector(7 downto 0);
 	 signal ROM_HYPERBAS_DO    : std_logic_vector(7 downto 0);
@@ -281,6 +282,29 @@ COMPONENT keyboard
 		swnmi        : OUT STD_LOGIC;
 		swrst        : OUT STD_LOGIC
 	);
+END COMPONENT;
+
+COMPONENT psg
+PORT (
+	  clock : IN STD_LOGIC;
+	  ce    : IN STD_LOGIC;
+	  reset : IN STD_LOGIC;
+	  bdir : IN STD_LOGIC;
+	  bc1 : IN STD_LOGIC;
+	  sel : IN STD_LOGIC;
+	  d   : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+	  q   : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+
+	  ioad : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+	  ioaq : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+	  iobd : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+	  iobq : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+
+	  MIX : OUT UNSIGNED (13 DOWNTO 0);
+	  A   : OUT UNSIGNED (11 DOWNTO 0);
+	  B   : OUT UNSIGNED(11 DOWNTO 0);
+	  C   : OUT UNSIGNED(11 DOWNTO 0)
+);
 END COMPONENT;
 
 COMPONENT wd1793
@@ -337,40 +361,22 @@ COMPONENT wd1793
 	);
 END COMPONENT;
 
-COMPONENT jt49_bus
-			 PORT (
-						clk : IN STD_LOGIC;
-						clk_en : IN STD_LOGIC;
-						rst_n : IN STD_LOGIC;
-						bdir : IN STD_LOGIC;
-						bc1 : IN STD_LOGIC;
-						sel : IN STD_LOGIC;
-						din : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-						dout : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
-						sound : OUT STD_LOGIC_VECTOR(9 DOWNTO 0);
-						A : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
-						B : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
-						C : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
-						sample : OUT STD_LOGIC;
-						IOA_In : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-						IOA_Out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
-						IOB_In : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-						IOB_Out : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
-			 );
-END COMPONENT;
+
 
 begin
 
 --RESETn <= (not RESET and KEYB_RESETn);
+cpu_irq <=  via1_irq and via2_irq  and acia_irq and cont_irq;
+
 inst_cpu : entity work.T65
 	port map (
 		Mode    		=> "00",
       Res_n   		=> RESETn,
-      Enable  		=> ENA_1MHZ,
+      Enable  		=> ENA_1MHZ, --_N,
       Clk     		=> CLK_IN,
       Rdy     		=> '1',
       Abort_n 		=> '1',
-      IRQ_n   		=> via1_irq and via2_irq  and acia_irq and cont_irq, 
+      IRQ_n   		=> cpu_irq,
       NMI_n   		=> '1',
       SO_n    		=> '1',
       R_W_n   		=> cpu_rw,
@@ -552,25 +558,27 @@ inst_via2 : entity work.M6522_1
 
 
 -- PSG
-inst_psg : jt49_bus
-  PORT MAP(
-		 clk => CLK_IN,
-		 clk_en => ENA_1MHZ,
-		 sel => '1',
-		 rst_n => '1', --RESETn,
-		 bc1 =>  via1_ca2_out,
-		 bdir => via1_cb2_out,
-		 din =>  via1_pa_out,
-		 dout => psg_do,
-		 sample => open,
-		 sound => PSG_OUT,
-		 A => PSG_OUT_A,
-		 B => PSG_OUT_B,
-		 C => PSG_OUT_C,
-		 IOA_In => (OTHERS => '0'),
-		 IOA_Out => ym_o_ioa,
-		 IOB_In => (OTHERS => '0')
- );
+ psg_a: psg
+  port map (
+    clock       => CLK_IN,
+    ce          => ENA_1MHZ,
+    reset       => '1',
+    bdir        => via1_cb2_out,
+    bc1         => via1_ca2_out,
+    d           => via1_pa_out,
+    q           => psg_do,
+    a           => PSG_OUT_A,
+    b           => PSG_OUT_B,
+    c           => PSG_OUT_C,
+    mix         => PSG_OUT,
+
+    ioad        => "ZZZZZZZZ",
+    ioaq        => ym_o_ioa,
+    iobd        => "ZZZZZZZZ",
+    iobq        => open,
+
+    sel         => '1'
+    );
 
 
 inst_key : keyboard
@@ -658,6 +666,7 @@ HCS10017 : entity work.HCS10017
       CLK        	=> CLK_IN,
       PHI2       	=> ula_phi2,
 		PHI2_EN     => ENA_1MHZ,
+		PHI2_EN_N   => ENA_1MHZ_N,
       CLK_4      	=> ula_CLK_4,
 		CLK_4_EN    => ula_CLK_4_en,
       RW         	=> cpu_rw,
@@ -727,13 +736,13 @@ fdc0 : wd1793
 		intrq         => WD_IRQ, 
 		drq           => WD_DRQ, 
 
-		ready         => fdd_ready(0), 
+		ready         => fdd_ready(0) and not fdd_prepare, 
 		busy          => fd_led, 
 
 		layout        => '0' , --fdd_layout, 
 		size_code     => "001", 
 		side          => SS,
-		prepare       => fdd_busy,
+		prepare       => fdd_prepare,
 		img_mounted   => img_mounted(0), 
 		wp            => img_wp, 
 		img_size      => img_size (19 downto 0), 
@@ -744,7 +753,7 @@ fdc0 : wd1793
 		sd_buff_addr  => sd_buff_addr, 
 		sd_buff_dout  => sd_dout, 
 		sd_buff_din   => sd_din,
-		sd_buff_wr    => sd_dout_strobe,
+		sd_buff_wr    => sd_buff_wr,
 	
 		input_active  => '0',
 		input_addr    => (others => '0'),	

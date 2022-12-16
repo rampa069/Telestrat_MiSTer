@@ -225,7 +225,6 @@ localparam CONF_STR = {
 
 wire        clk_sys;
 wire        clk_acia;
-wire        clk_disk;
 wire        locked;
 
 
@@ -234,12 +233,11 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_sys),
-	.outclk_1(clk_disk),
 	.outclk_2(clk_acia),
 	.locked(locked)
 );
 
-assign CLK_VIDEO = clk_disk;
+assign CLK_VIDEO = clk_sys;
 
 reg        reset = 0;
 reg [16:0] clr_addr = 0;
@@ -331,10 +329,10 @@ reg old_keystb = 0;
 always @(posedge clk_sys) old_keystb <= ps2_key[10];
 
 
-wire  [7:0] psg_a;
-wire  [7:0] psg_b;
-wire  [7:0] psg_c;
-wire  [9:0] psg_out;
+wire  [11:0] psg_a;
+wire  [11:0] psg_b;
+wire  [11:0] psg_c;
+wire  [13:0] psg_out;
 
 wire  [1:0] stereo = status [9:8];
 
@@ -363,7 +361,6 @@ telestrat telestrat
 	.clk_in           (clk_sys),
 	.RESET            (reset),
 	.clk_acia         (clk_acia),
-	.clk_disk         (clk_disk),
 	.key_pressed      (ps2_key[9]),
 	.key_code         (ps2_key[7:0]),
 	.key_extended     (ps2_key[8]),
@@ -410,8 +407,7 @@ telestrat telestrat
 	.sd_buff_addr     (sd_buff_addr),
 	.sd_dout          (sd_buff_dout),
 	.sd_din           (sd_buff_din[0]),
-	.sd_dout_strobe   (sd_buff_wr),
-	.sd_din_strobe    (0)
+	.sd_buff_wr       (sd_buff_wr),
 );
 
 reg [1:0] fdd_ready = 0;
@@ -463,13 +459,21 @@ video_mixer #(.LINE_LENGTH(250), .HALF_DEPTH(1), .GAMMA(1)) video_mixer
 );
 
 ///////////////////////////////////////////////////
-always @ (psg_a,psg_b,psg_c,psg_out,stereo) begin
-		case (stereo)
-			2'b01  : {AUDIO_L,AUDIO_R} <= {{{2'b0,psg_a} + {2'b0,psg_b}},6'b0,{{2'b0,psg_c} + {2'b0,psg_b}},6'b0};
-			2'b10  : {AUDIO_L,AUDIO_R} <= {{{2'b0,psg_a} + {2'b0,psg_c}},6'b0,{{2'b0,psg_c} + {2'b0,psg_b}},6'b0};
-			default: {AUDIO_L,AUDIO_R} <= {psg_out,6'b0,psg_out,6'b0};
-       endcase
+wire [15:0] psg_l;
+wire [15:0] psg_r;
+reg [12:0] psg_ab;
+reg [12:0] psg_ac;
+reg [12:0] psg_bc;
+
+always @ (clk_sys,psg_a,psg_b,psg_c) begin
+ psg_ab <= {{1'b0,psg_a} + {1'b0,psg_b}};
+ psg_ac <= {{1'b0,psg_a} + {1'b0,psg_c}};
+ psg_bc <= {{1'b0,psg_b} + {1'b0,psg_c}};
 end
+
+assign AUDIO_L = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_ab,3'b0}: {psg_ac,3'b0};
+assign AUDIO_R = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_bc,3'b0}: {psg_bc,3'b0};
+
 
 ///////////////////////////////////////////////////
 wire tape_adc, tape_adc_act;

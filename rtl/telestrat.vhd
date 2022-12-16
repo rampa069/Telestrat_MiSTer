@@ -156,7 +156,7 @@ architecture RTL of telestrat is
 	SIGNAL WD_WEn : STD_LOGIC;
 	SIGNAL WD_IRQ : STD_LOGIC;
 	SIGNAL WD_DRQ : STD_LOGIC;
-	
+	SIGNAL SS     : STD_LOGIC;	
 	-- FDC
 	SIGNAL FDC_DAL_0_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL FDC_DAL_1_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -170,10 +170,12 @@ architecture RTL of telestrat is
 	SIGNAL DS1    : STD_LOGIC;
 	SIGNAL DS2    : STD_LOGIC;
 	SIGNAL DS3    : STD_LOGIC;
-	SIGNAL SS     : STD_LOGIC; 
+ 
 	-- CS 
 	SIGNAL CS300n : STD_LOGIC;
 	SIGNAL CS310n : STD_LOGIC;
+	SIGNAL CS314n : STD_LOGIC;
+	SIGNAL CS31Cn : STD_LOGIC;
 	SIGNAL CS320n : STD_LOGIC;
 	SIGNAL CS0n   : STD_LOGIC;
 	SIGNAL CS1n   : STD_LOGIC;
@@ -591,16 +593,18 @@ KEYB_RESETn <= NOT swrst;
 HCS3119: work.HCS3119 
     port map( 
           CLK_SYS   => CLK_IN,
+			 PH2       => ula_PHI2,
                                                             -- Oric Expansion Port Signa
 			 A         => cpu_ad (15 downto 0),                -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
 			 IO        => ula_CSIOn,
-          PH2       => ula_PHI2,                            -- 6502 PH2 
           MAPn      => ula_MAPn,                            -- Oric MAP
           PA        => via2_pa_out (2 downto 0),            -- VIA1 PA Lines
 
           CS300n    => CS300n,
           CS310n    => CS310n,
+			 CS314n    => CS314n,
+			 CS31Cn    => CS31Cn,
           CS320n    => CS320n,
 			 CS1793n   => CS1793n,
           CS0n      => CS0n,
@@ -612,7 +616,7 @@ HCS3119: work.HCS3119
           CS6n      => CS6n,
  
           WD_CLK    => WD_CLK,
-			 WD_CSn    => WD_CSn,
+			 --WD_CSn    => open,
 			 WD_REn    => WD_REn,
 			 WD_WEn    => WD_WEn,
 			 WD_DRQ    => WD_DRQ,
@@ -623,15 +627,16 @@ HCS3119: work.HCS3119
 
 HCS3120: work.HCS3120 
     port map( 
-          CLK_SYS   => CLK_DISK,
-                                                         -- Oric Expansion Port Signals
+          CLK_SYS   => CLK_IN,
+          PH2       => ula_PHI2,
+																				-- Oric Expansion Port Signals
           DI        => cpu_do,                              -- 6502 Data Bus
-          DO        => CONT_D_OUT,                              -- 6502 Data Bus
-          A         => cpu_ad (15 downto 0),                -- 6502 Address Bus
+          DO        => CONT_D_OUT,                          -- 6502 Data Bus
+          A         => cpu_ad(15 downto 0),                 -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
           nIRQ      => cont_irq,                            -- 6502 /IRQ
-          PH2       => ula_PHI2,                            -- 6502 PH2 
-          IO        => CS1793n,                             -- Oric I/O 
+          IO        => CS310n,                              -- Oric I/O 
+ 			 CS314n    => CS314n,
           IOCTRL    => IOCONTn,                             -- Oric I/O Control           
                                                             -- Additional MCU Interface Lines
           nRESET    => RESETn,                              -- RESET from MCU
@@ -641,9 +646,9 @@ HCS3120: work.HCS3120
 			 DS1         =>  DS1,
 			 DS2         =>  DS2,
 			 DS3         =>  DS3,
-			 DAL_OUT     =>  FDC_DAL_0_OUT,  
 			 WD_IRQ      =>  WD_IRQ,
 			 WD_DRQ      =>  WD_IRQ,
+			 WD_CSn      =>  WD_CSn,
 			 WD_REn      =>  WD_REn
          );
 			
@@ -656,7 +661,7 @@ HCS10017 : entity work.HCS10017
       CLK_4      	=> ula_CLK_4,
 		CLK_4_EN    => ula_CLK_4_en,
       RW         	=> cpu_rw,
-      RESETn     	=> not RESET,
+      RESETn     	=> pll_locked,
 		MAPn      	=> ula_MAPn,
       DB         	=> SRAM_DO,
       ADDR       	=> cpu_ad(15 downto 0),
@@ -682,7 +687,7 @@ inst_ACIA : work.ACIA
    port map(
           RESET  => RESETn,
 			 PHI2   => ula_phi2,
-			 CS     => CS310n,
+			 CS     => CS31Cn,
 			 RWN    => cpu_rw,
 			 RS     => cpu_ad(1 downto 0),
 			 DATAIN => cpu_do,
@@ -708,11 +713,11 @@ fdc0 : wd1793
 	)
 	PORT MAP
 	(
-		clk_sys       => CLK_DISK, 
+		clk_sys       => CLK_IN, 
 		ce            => WD_CLK, 
 
-		reset         => NOT RESETn, 
-		io_en         => not WD_CSn, 
+		reset         => not RESETn, 
+		io_en         => not CS1793n, 
 		rd            => not WD_REn,
 		wr            => NOT WD_WEn,
 		addr          => cpu_ad (1 DOWNTO 0), 
@@ -722,7 +727,7 @@ fdc0 : wd1793
 		intrq         => WD_IRQ, 
 		drq           => WD_DRQ, 
 
-		ready         => '1', --fdd_ready(0), 
+		ready         => fdd_ready(0), 
 		busy          => fd_led, 
 
 		layout        => '0' , --fdd_layout, 
@@ -750,6 +755,8 @@ fdc0 : wd1793
 		); 
  
 
+
+
 via1_pa_in <= (via1_pa_out and not via1_pa_out_oe) or (psg_do and via1_pa_out_oe);
 via1_pb_in(2 downto 0) <= via1_pb_out(2 downto 0);
 via1_pb_in(3) <= KEY_HIT;
@@ -764,8 +771,8 @@ PRN_STROBE  <= via1_pb_out(4);
 PRN_DATA    <= via1_pa_out;
 
 
-joya <= joystick_0(4 downto 0);
-joyb <= joystick_1(4 downto 0);
+joya <= joystick_0(3) & joystick_0(0) & joystick_0(1) & joystick_0(2) & joystick_0(4) ;
+joyb <= joystick_1(3) & joystick_1(0) & joystick_1(1) & joystick_1(2) & joystick_1(4) ;
 
 joy_mux <= not joya when via2_pb_out(7) = '1' else
            not joyb when via2_pb_out(6) = '1' else
@@ -777,8 +784,10 @@ via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 process begin
 	wait until rising_edge(clk_in);
 	  	-- EXPANSION
-      if    cpu_rw = '1' and ula_PHI2 = '1' and CS1793n = '0'  then
-        CPU_DI <= cont_D_OUT;
+      if    cpu_rw = '1' and ula_PHI2 = '1' and CS1793n = '0' then
+        CPU_DI <= FDC_DAL_0_OUT;
+      elsif	cpu_rw = '1' and ula_PHI2 = '1' and CS314n = '0'  then
+        CPU_DI <= CONT_D_OUT;
 		
       -- VIA1
 		elsif cpu_rw = '1' and ula_phi2 = '1' and CS300n = '0' and IOCONTn='1' then
@@ -787,9 +796,9 @@ process begin
 		elsif cpu_rw = '1' and ula_phi2 = '1' and CS320n = '0' and IOCONTn='1'then
 			cpu_di <= VIA2_DO ;
       -- ACIA
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS310n = '0' and IOCONTn='1' then
+		elsif cpu_rw = '1' and ula_phi2 = '1' and CS31Cn = '0' and IOCONTn='1' then
 			cpu_di <= ACIA_DO;
-	
+	   -- ROM BANKS
 	   elsif cpu_rw = '1' and ula_phi2 = '1' and CS6n = '0' and rom = '0' then
 			cpu_di <= ROM_TELMON_DO;
 	   elsif cpu_rw = '1' and ula_phi2 = '1' and CS6n = '0' and rom = '1' then
@@ -802,6 +811,7 @@ process begin
 			cpu_di <= ROM_TELEASS_DO;
 		elsif cpu_rw = '1' and ula_phi2 = '1' and CS4n = '0' and rom = '1' then
 			cpu_di <= ROM_ORIC1_DO;
+		-- RAM External banks.	
 		elsif cpu_rw = '1' and ula_phi2 = '1' and CS3n = '0'  then 
 			cpu_di <= RAM_BANK4_DO;
 		elsif cpu_rw = '1' and ula_phi2 = '1' and CS2n = '0'  then

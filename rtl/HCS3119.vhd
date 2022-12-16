@@ -19,22 +19,21 @@ ENTITY HCS3119 IS
 	PORT 
 	(
 		CLK_SYS         : IN std_logic; -- 24 Mhz input clock
-		
 		-- Oric Expansion Port Signals
 		A               : IN std_logic_vector(15 DOWNTO 0); -- 6502 Address Bus
 		RnW             : IN std_logic; -- 6502 Read-/Write
-		nIRQ            : OUT std_logic; -- 6502 /IRQ
 		IO              : IN std_logic;
 		PH2             : IN std_logic; -- 6502 PH2
 		MAPn            : OUT std_logic; -- Oric MAP
-		IOCTRL          : OUT std_logic; -- Oric I/O Control 
 		nHOSTRST        : OUT std_logic; -- Oric RESET
       -- VIA
 		PA              : IN std_logic_vector (2 downto 0) := "111";
       
 	   -- CS Lines	
       CS300n             : OUT std_logic;
-      CS310n             : OUT std_logic;
+		CS310n             : OUT STD_LOGIC;
+		CS314n             : OUT STD_LOGIC;
+		CS31Cn             : OUT STD_LOGIC;
       CS320n             : OUT std_logic;
 		CS1793n            : OUT std_logic;
       CS0n               : OUT std_logic;
@@ -47,7 +46,6 @@ ENTITY HCS3119 IS
 		
 		--WD output
 		WD_CLK             : OUT std_logic;
-      WD_CSn             : OUT std_logic;
 		WD_WEn             : OUT std_logic;
 		WD_REn             : OUT std_logic;
 		WD_DRQ             : IN std_logic;
@@ -63,19 +61,11 @@ END HCS3119;
 ARCHITECTURE Behavioral OF HCS3119 IS
 
 
-
-	-- Status
- 
- 
-
- 
 	SIGNAL U16K : std_logic;
 	SIGNAL MAPn_INT : std_logic;
 	SIGNAL CS1793n_INT : std_logic;
+	SIGNAL CS310n_INT : std_logic;
 	SIGNAL WD_REn_INT  : std_logic;
-	SIGNAL WD_CSn_INT  : std_logic;
-	SIGNAL CS314n :std_logic;
-	SIGNAL CS318n :std_logic;
 	
 	SIGNAL EDGE_DETECT : STD_LOGIC_VECTOR(1 DOWNTO 0);
 
@@ -95,22 +85,25 @@ begin
 			
 			--MAP signal
 			MAPn_INT <= '0' when (PH2='1' and PA ="000" and A(15 downto 14) = "11") else '1' ;
+			
+			--
 			MAPn <= MAPn_INT;
          CS1793n <= CS1793n_INT;
+			CS310n <= CS310n_INT;
 			--
-			WD_REn_INT <= CS1793n_INT OR NOT RnW;
+			WD_REn_INT <= CS1793n_INT AND NOT RnW;
 			WD_REn <= WD_REn_INT; 
-			WD_WEn <= CS1793n_INT OR RnW;
-			WD_CSn_INT <= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) = "00" ELSE '1';
-			WD_CSn <= WD_CSn_INT;
+			WD_WEn <= CS1793n_INT AND  RnW;
+
 			--
 
-			CS300n     <= '0' when A(7 downto 4) = "0000" AND IO = '0' else '1';
-			CS320n     <= '0' when A(7 downto 4) = "0010" AND IO = '0' else '1';
-			CS1793n_INT<= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) /= "11" ELSE '1';
-			CS310n     <= '0' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) = "11" ELSE '1';
-			CS314n     <= '0' WHEN A(7 DOWNTO 2) = "000101" AND IO = '0' ELSE '1';
-			CS318n     <= '0' WHEN A(7 DOWNTO 2) = "000110" AND IO = '0' ELSE '1';
+			CS300n     <= '0' when A(15 downto 4) = x"030" AND IO = '0' else '1';
+			CS320n     <= '0' when A(15 downto 4) = x"032" AND IO = '0' else '1';
+			CS310n_INT <= '0' WHEN A(15 DOWNTO 4) >= x"0310" AND A(15 DOWNTO 4) <= x"0313" AND IO ='0'  ELSE '1';
+			CS314n     <= '0' WHEN A(15 DOWNTO 4) >= x"0314" AND A(15 DOWNTO 4) <= x"0318" AND IO ='0'  ELSE '1';
+			CS31Cn     <= '0' WHEN A(15 DOWNTO 4) >= x"031C" AND A(15 DOWNTO 4) <= x"031F" AND IO = '0' ELSE '1';
+			CS1793n_INT<= '0' WHEN CS310n_INT = '0' AND PH2 ='1' ELSE '1';
+			
 			
 			-- 
 			U16K <= '1' when A(15 downto 14) = "11" and MAPn_INT ='1'   else '0';

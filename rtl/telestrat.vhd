@@ -1,40 +1,6 @@
 --
 -- A simulation model of ORIC TELESTRAT hardware
 -- Based on the ORIC ATMOS Core (initial  Copyright (c) SEILEBOST - March 2006)
--- 
--- All rights reserved
---
--- Redistribution and use in source and synthezised forms, with or without
--- modification, are permitted provided that the following conditions are met:
---
--- Redistributions of source code must retain the above copyright notice,
--- this list of conditions and the following disclaimer.
---
--- Redistributions in synthesized form must reproduce the above copyright
--- notice, this list of conditions and the following disclaimer in the
--- documentation and/or other materials provided with the distribution.
---
--- Neither the name of the author nor the names of other contributors may
--- be used to endorse or promote products derived from this software without
--- specific prior written permission.
---
--- THIS CODE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
--- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
--- THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
--- PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE
--- LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
--- CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
--- SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
--- INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
--- CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
--- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
--- POSSIBILITY OF SUCH DAMAGE.
---
--- You are responsible for any legal issues arising from your use of this code.
---
--- The latest version of this file can be found at: passionoric.free.fr
---
--- Email seilebost@free.fr
 --
 --
 
@@ -76,7 +42,7 @@ entity telestrat is
 	 ram_we            : out std_logic;
 	 phi2              : out std_logic;
 	 fd_led            : out std_logic;
-	 fdd_ready         : in std_logic_vector(1 downto 0);
+	 fdd_ready         : in std_logic;
 	 fdd_busy          : out std_logic;
 	 fdd_reset         : in std_logic;
 	 fdd_layout        : in std_logic;
@@ -85,18 +51,21 @@ entity telestrat is
 	 pll_locked        : in std_logic;
 	 disk_enable       : in std_logic;
 	 rom               : in std_logic;
-	 img_mounted:     in std_logic_vector (1 downto 0);
+	 uart_txd          : out std_logic;
+	 uart_rxd          : in std_logic;
+	 uart_rts          : out std_logic;
+	 uart_cts          : in std_logic;
+	 img_mounted:     in std_logic;
 	 img_wp:          in std_logic;
-	 img_size:        in std_logic_vector (31 downto 0);
+	 img_size:        in std_logic_vector (19 downto 0);
 	 sd_lba:          out std_logic_vector (31 downto 0);
 	 sd_rd:           out std_logic;
 	 sd_wr:           out std_logic;
 	 sd_ack:          in std_logic;
 	 sd_buff_addr:    in std_logic_vector (8 downto 0);
-	 sd_dout:         in std_logic_vector (7 downto 0);
-	 sd_din:          out std_logic_vector (7 downto 0);
-	 sd_buff_wr:      in std_logic;
-	 sd_din_strobe:   in std_logic
+	 sd_buff_dout:    in std_logic_vector (7 downto 0);
+	 sd_buff_din:     out std_logic_vector(7 downto 0);
+	 sd_buff_wr:      in std_logic
 	 );
 end;
 
@@ -111,6 +80,7 @@ architecture RTL of telestrat is
     -- cpu
     signal cpu_ad             : std_logic_vector(23 downto 0);
     signal cpu_di             : std_logic_vector(7 downto 0);
+	 signal cpu_di_last        : std_logic_vector(7 downto 0);
     signal cpu_do             : std_logic_vector(7 downto 0);
     signal cpu_rw             : std_logic;
     signal via1_irq           : std_logic;
@@ -119,6 +89,8 @@ architecture RTL of telestrat is
       
 	-- VIA 1
 	SIGNAL via1_pa_out_oe : STD_LOGIC_VECTOR(7 DOWNTO 0);
+	SIGNAL via1_pa_out_oe_l : STD_LOGIC_VECTOR(7 DOWNTO 0);
+
 	SIGNAL via1_pa_in : STD_LOGIC_VECTOR(7 DOWNTO 0)  ;
 	SIGNAL via1_pa_out : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL via1_pa_in_from_psg : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -155,7 +127,7 @@ architecture RTL of telestrat is
 	SIGNAL WD_WEn : STD_LOGIC;
 	SIGNAL WD_IRQ : STD_LOGIC;
 	SIGNAL WD_DRQ : STD_LOGIC;
-	SIGNAL SS     : STD_LOGIC;	
+	SIGNAL SSEL   : STD_LOGIC;	
 	-- FDC
 	SIGNAL FDC_DAL_0_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL FDC_DAL_1_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -173,7 +145,7 @@ architecture RTL of telestrat is
  
 	-- CS 
 	SIGNAL CS300n : STD_LOGIC;
-	SIGNAL CS310n : STD_LOGIC;
+--	SIGNAL CS310n : STD_LOGIC;
 	SIGNAL CS314n : STD_LOGIC;
 	SIGNAL CS31Cn : STD_LOGIC;
 	SIGNAL CS320n : STD_LOGIC;
@@ -189,19 +161,17 @@ architecture RTL of telestrat is
 	signal ACIA_DO: STD_LOGIC_VECTOR(7 downto 0);
 	signal acia_irq: STD_LOGIC;
 	signal XTLI    : STD_LOGIC;
-	signal RXD    : STD_LOGIC;
-	signal TXD    : STD_LOGIC;
-	signal CTS    : STD_LOGIC;
-  	signal RTS    : STD_LOGIC;
+--	signal RXD    : STD_LOGIC;
+--	signal TXD    : STD_LOGIC;
+--	signal CTS    : STD_LOGIC;
+--  	signal RTS    : STD_LOGIC;
 	signal DTR    : STD_LOGIC;
 	
    -- Controller
 	 signal cont_D_OUT         : std_logic_vector(7 downto 0);
-	 signal cont_ECE           : std_logic;
-    signal cont_nOE           : std_logic;
 	 signal cont_irq           : std_logic;
-	 signal cont_MAPn          : std_logic;
-	 signal IOCONTn            : std_logic;
+	 --signal cont_MAPn          : std_logic;
+	 --signal IOCONTn            : std_logic :='1';
     -- Keyboard PS2
     signal KEY_HIT            : std_logic;
     signal KEYB_RESETn        : std_logic;
@@ -216,7 +186,7 @@ architecture RTL of telestrat is
     -- ULA 1
     signal ula_phi2           : std_logic;
     signal ula_CSIOn          : std_logic;
-    signal ula_CSROMn         : std_logic;
+    --signal ula_CSROMn         : std_logic;
 	 signal ula_CSRAMn         : std_logic;
     signal ula_AD_SRAM        : std_logic_vector(15 downto 0);
     signal ula_CE_SRAM        : std_logic;
@@ -226,11 +196,7 @@ architecture RTL of telestrat is
 	 signal ula_MAPn           : std_logic;
     signal ula_CLK_4          : std_logic;
     signal ula_CLK_4_en       : std_logic;
-    signal ula_MUX            : std_logic;
-    signal ula_RW_RAM         : std_logic;
-	 signal ula_VIDEO_R        : std_logic;
-	 signal ula_VIDEO_G        : std_logic;
-	 signal ula_VIDEO_B        : std_logic;
+ 
 	 
 
 --	 signal lSRAM_D            : std_logic_vector(7 downto 0);
@@ -311,7 +277,7 @@ COMPONENT wd1793
 	GENERIC 
 	(
 		RWMODE          : INTEGER := 1;
-		EDSK            : INTEGER := 0
+		EDSK            : INTEGER := 1
 	);
 	PORT 
 	(
@@ -365,19 +331,18 @@ END COMPONENT;
 
 begin
 
---RESETn <= (not RESET and KEYB_RESETn);
-cpu_irq <=  via1_irq and via2_irq  and acia_irq and cont_irq;
+cpu_irq <=  via1_irq and via2_irq  and cont_irq and acia_irq;
 
 inst_cpu : entity work.T65
 	port map (
 		Mode    		=> "00",
       Res_n   		=> RESETn,
-      Enable  		=> ENA_1MHZ, --_N,
+      Enable  		=> ENA_1MHZ,
       Clk     		=> CLK_IN,
       Rdy     		=> '1',
       Abort_n 		=> '1',
       IRQ_n   		=> cpu_irq,
-      NMI_n   		=> '1',
+      NMI_n   		=> KEYB_NMIn,
       SO_n    		=> '1',
       R_W_n   		=> cpu_rw,
       A       		=> cpu_ad,
@@ -475,7 +440,46 @@ inst_ram4 : entity work.ram16k
 		q 			   => RAM_BANK4_DO
 );
 
-
+--via1_pa_out_oe_l <= not via1_pa_out_oe;
+--
+--inst_via1 : entity work.via6522
+--	port map
+--	(
+--		clock           => CLK_IN,
+--		rising          => ENA_1MHZ,
+--		falling         => ENA_1MHZ_N,
+--		reset           => not RESETn,
+--
+--		addr            => cpu_ad(3 downto 0),
+--		wen             => not cpu_rw and IOCONTn and  not CS300n,
+--		ren             => cpu_rw and IOCONTn and not CS300n,
+--		data_in         => cpu_do,
+--		data_out        => VIA1_DO,
+--
+--		port_a_i        => via1_pa_in,
+--		port_a_o        => via1_pa_out,
+--		port_a_t        => via1_pa_out_oe,
+--
+--		port_b_i        => via1_pb_in,
+--		port_b_o        => via1_pb_out,
+--		port_b_t        => open,
+--
+--		ca1_i           => '1',
+--
+--		ca2_o           => via1_ca2_out,
+--		ca2_i           => '1',
+--		ca2_t           => open,
+--
+--		cb1_i           => K7_TAPEIN,
+--		cb1_o           => via1_cb1_out,
+--		cb1_t           => open,
+--
+--		cb2_i           => '1',
+--		cb2_o           => via1_cb2_out,
+--		cb2_t           => open,
+--
+--		irq             => via1_irq
+--	);
 
 inst_via1 : entity work.M6522
 	port map (
@@ -483,7 +487,7 @@ inst_via1 : entity work.M6522
 		I_DATA      => cpu_do(7 downto 0),
 		O_DATA      => VIA1_DO,
 		I_RW_L      => cpu_rw,
-		I_CS1       => '1',
+		I_CS1       => '1', --IOCONTn,
 		I_CS2_L     => CS300n,
 		
 		O_IRQ_L     => via1_irq, 
@@ -496,7 +500,7 @@ inst_via1 : entity work.M6522
 		
 		I_PA        => via1_pa_in,
 		O_PA        => via1_pa_out,
-		O_PA_OE_L   => via1_pa_out_oe,
+		O_PA_OE_L   => via1_pa_out_oe_l,
 		
 		-- PORT B
 		I_CB1       => K7_TAPEIN,
@@ -561,8 +565,8 @@ inst_via2 : entity work.M6522_1
  psg_a: psg
   port map (
     clock       => CLK_IN,
-    ce          => ENA_1MHZ,
-    reset       => '1',
+    ce          => ENA_1MHZ_N,
+    reset       => RESETn,
     bdir        => via1_cb2_out,
     bc1         => via1_ca2_out,
     d           => via1_pa_out,
@@ -572,9 +576,9 @@ inst_via2 : entity work.M6522_1
     c           => PSG_OUT_C,
     mix         => PSG_OUT,
 
-    ioad        => "ZZZZZZZZ",
+    ioad        => (OTHERS => 'Z'),
     ioaq        => ym_o_ioa,
-    iobd        => "ZZZZZZZZ",
+    iobd        => (OTHERS => 'Z'),
     iobq        => open,
 
     sel         => '1'
@@ -602,15 +606,15 @@ HCS3119: work.HCS3119
     port map( 
           CLK_SYS   => CLK_IN,
 			 PH2       => ula_PHI2,
+			 MAPn      => ula_MAPn,
                                                             -- Oric Expansion Port Signa
 			 A         => cpu_ad (15 downto 0),                -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
 			 IO        => ula_CSIOn,
-          MAPn      => ula_MAPn,                            -- Oric MAP
           PA        => via2_pa_out (2 downto 0),            -- VIA1 PA Lines
 
           CS300n    => CS300n,
-          CS310n    => CS310n,
+--          CS310n    => CS310n,
 			 CS314n    => CS314n,
 			 CS31Cn    => CS31Cn,
           CS320n    => CS320n,
@@ -624,11 +628,8 @@ HCS3119: work.HCS3119
           CS6n      => CS6n,
  
           WD_CLK    => WD_CLK,
-			 --WD_CSn    => open,
 			 WD_REn    => WD_REn,
 			 WD_WEn    => WD_WEn,
-			 WD_DRQ    => WD_DRQ,
-			 WD_IRQ    => WD_IRQ,
 			 nRESET    => not RESET AND KEYB_RESETn,
 			 nHOSTRST  => RESETn                                -- RESET from MCU
          );
@@ -636,27 +637,28 @@ HCS3119: work.HCS3119
 HCS3120: work.HCS3120 
     port map( 
           CLK_SYS   => CLK_IN,
-          PH2       => ula_PHI2,
+			 WD_CLK    => WD_CLK,
 																				-- Oric Expansion Port Signals
           DI        => cpu_do,                              -- 6502 Data Bus
+			 FDC_DAL_OUT => FDC_DAL_0_OUT,
           DO        => CONT_D_OUT,                          -- 6502 Data Bus
           A         => cpu_ad(15 downto 0),                 -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
           nIRQ      => cont_irq,                            -- 6502 /IRQ
-          IO        => CS310n,                              -- Oric I/O 
+          IO        => ula_CSIOn,                           -- Oric I/O 
  			 CS314n    => CS314n,
-          IOCTRL    => IOCONTn,                             -- Oric I/O Control           
+			 CS1793n   => CS1793n,
+          --IOCTRL    => IOCONTn,                             -- Oric I/O Control           
                                                             -- Additional MCU Interface Lines
           nRESET    => RESETn,                              -- RESET from MCU
           
-          SS          =>  SS,
+          SS          =>  SSEL,
 			 DS0         =>  DS0,
 			 DS1         =>  DS1,
 			 DS2         =>  DS2,
 			 DS3         =>  DS3,
 			 WD_IRQ      =>  WD_IRQ,
-			 WD_DRQ      =>  WD_IRQ,
-			 WD_CSn      =>  WD_CSn,
+			 WD_DRQ      =>  WD_DRQ,
 			 WD_REn      =>  WD_REn
          );
 			
@@ -680,7 +682,7 @@ HCS10017 : entity work.HCS10017
 		SRAM_WE    	=> ula_WE_SRAM,
 		LATCH_SRAM 	=> ula_LATCH_SRAM,
 		CSIOn       => ula_CSIOn,
-      CSROMn     	=> ula_CSROMn,
+      --CSROMn     	=> ula_CSROMn,
       CSRAMn     	=> ula_CSRAMn,
       R          	=> VIDEO_R,
       G          	=> VIDEO_G,
@@ -702,16 +704,15 @@ inst_ACIA : work.ACIA
 			 DATAIN => cpu_do,
 			 DATAOUT=> ACIA_DO,
 			 XTLI   => CLK_ACIA,
-			 RTSB   => RTS,
-			 CTSB   => CTS,
+			 RTSB   => UART_RTS,
+			 CTSB   => UART_CTS,
 			 DTRB   => DTR, 
-			 RXD    => RXD,
-			 TXD    => TXD,
+			 RXD    => UART_RXD,
+			 TXD    => UART_TXD,
 			 IRQn   => acia_irq
 
 );
-RXD <= TXD; -- LOOPBACK.
-CTS <= RTS; -- LOOPBACK
+
 
 
 fdc0 : wd1793
@@ -728,7 +729,7 @@ fdc0 : wd1793
 		reset         => not RESETn, 
 		io_en         => not CS1793n, 
 		rd            => not WD_REn,
-		wr            => NOT WD_WEn,
+		wr            => not WD_WEn,
 		addr          => cpu_ad (1 DOWNTO 0), 
 		din           => CPU_DO, 
 		dout          => FDC_DAL_0_OUT, 
@@ -736,14 +737,14 @@ fdc0 : wd1793
 		intrq         => WD_IRQ, 
 		drq           => WD_DRQ, 
 
-		ready         => fdd_ready(0) and not fdd_prepare, 
+		ready         => fdd_ready and not fdd_prepare, 
 		busy          => fd_led, 
 
 		layout        => '0' , --fdd_layout, 
 		size_code     => "001", 
-		side          => SS,
+		side          => SSEL,
 		prepare       => fdd_prepare,
-		img_mounted   => img_mounted(0), 
+		img_mounted   => img_mounted, 
 		wp            => img_wp, 
 		img_size      => img_size (19 downto 0), 
 		sd_lba        => sd_lba, 
@@ -751,8 +752,8 @@ fdc0 : wd1793
 		sd_wr         => sd_wr, 
 		sd_ack        => sd_ack, 
 		sd_buff_addr  => sd_buff_addr, 
-		sd_buff_dout  => sd_dout, 
-		sd_buff_din   => sd_din,
+		sd_buff_dout  => sd_buff_dout, 
+		sd_buff_din   => sd_buff_din,
 		sd_buff_wr    => sd_buff_wr,
 	
 		input_active  => '0',
@@ -766,7 +767,7 @@ fdc0 : wd1793
 
 
 
-via1_pa_in <= (via1_pa_out and not via1_pa_out_oe) or (psg_do and via1_pa_out_oe);
+via1_pa_in <= (via1_pa_out and not via1_pa_out_oe_l) or (psg_do and via1_pa_out_oe_l);
 via1_pb_in(2 downto 0) <= via1_pb_out(2 downto 0);
 via1_pb_in(3) <= KEY_HIT;
 via1_pb_in(4) <=via1_pb_out(4);
@@ -790,50 +791,32 @@ joy_mux <= not joya when via2_pb_out(7) = '1' else
 via2_pb_in  <=  via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
 via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
-process begin
-	wait until rising_edge(clk_in);
-	  	-- EXPANSION
-      if    cpu_rw = '1' and ula_PHI2 = '1' and CS1793n = '0' then
-        CPU_DI <= FDC_DAL_0_OUT;
-      elsif	cpu_rw = '1' and ula_PHI2 = '1' and CS314n = '0'  then
-        CPU_DI <= CONT_D_OUT;
-		
-      -- VIA1
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS300n = '0' and IOCONTn='1' then
-			cpu_di <= VIA1_DO ;
-      -- VIA2
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS320n = '0' and IOCONTn='1'then
-			cpu_di <= VIA2_DO ;
-      -- ACIA
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS31Cn = '0' and IOCONTn='1' then
-			cpu_di <= ACIA_DO;
-	   -- ROM BANKS
-	   elsif cpu_rw = '1' and ula_phi2 = '1' and CS6n = '0' and rom = '0' then
-			cpu_di <= ROM_TELMON_DO;
-	   elsif cpu_rw = '1' and ula_phi2 = '1' and CS6n = '0' and rom = '1' then
-			cpu_di <= ROM_STRATORIC_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS5n = '0' and rom = '0' then
-			cpu_di <= ROM_HYPERBAS_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS5n = '0' and rom = '1' then
-			cpu_di <= ROM_ATMOS_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS4n = '0' and rom = '0' then
-			cpu_di <= ROM_TELEASS_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS4n = '0' and rom = '1' then
-			cpu_di <= ROM_ORIC1_DO;
-		-- RAM External banks.	
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS3n = '0'  then 
-			cpu_di <= RAM_BANK4_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS2n = '0'  then
-			cpu_di <= RAM_BANK3_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS1n = '0'  then
-			cpu_di <= RAM_BANK2_DO;
-		elsif cpu_rw = '1' and ula_phi2 = '1' and CS0n = '0'  then
-			cpu_di <= RAM_BANK1_DO;
-		-- RAM
 
-		elsif cpu_rw = '1' and ula_phi2 = '1' and ula_CSRAMn = '0' and ula_LATCH_SRAM = '0' then
-			cpu_di <= SRAM_DO; 	
+
+cpu_di <= VIA1_DO          when cs300n = '0' else --and IOCONTn='1' else
+          CONT_D_OUT       when cs314n = '0' else           
+          FDC_DAL_0_OUT    when CS1793n = '0' else 
+			 ACIA_DO          when CS31Cn = '0' else --and IOCONTn='1' else
+			 VIA2_DO          when CS320n = '0' else --and IOCONTn='1' else
+			 ROM_TELMON_DO    when CS6n = '0' and rom = '0' else
+			 ROM_STRATORIC_DO when CS6n = '0' and rom = '1' else
+			 ROM_HYPERBAS_DO  when CS5n = '0' and rom = '0' else
+			 ROM_ATMOS_DO     when CS5n = '0' and rom = '1' else
+			 ROM_TELEASS_DO   when CS4n = '0' and rom = '0' else
+			 ROM_ORIC1_DO     when CS4n = '0' and rom = '1' else
+			 RAM_BANK4_DO     when CS3n = '0' else
+			 RAM_BANK3_DO     when CS2n = '0' else
+			 RAM_BANK2_DO     when CS1n = '0' else
+			 RAM_BANK1_DO     when CS0n = '0' else
+			 SRAM_DO          when ula_CSRAMn = '0' else
+			 CPU_DI_LAST;
+
+process (CLK_IN) begin
+	if rising_edge(CLK_IN) then
+		if cpu_rw = '1' and ula_phi2 = '1' then
+			cpu_di_last <= cpu_di;
 		end if;
+	end if;
 end process;
 
 end RTL;

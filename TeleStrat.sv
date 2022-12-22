@@ -19,6 +19,29 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
+//============================================================================
+//  Atari ST
+//  Copyright (C) Till Harbaum <till@harbaum.org> 
+//  Copyright (C) Gyorgy Szombathelyi <gyurco@freemail.hu>
+//
+//  Port to MiSTer
+//  Copyright (C) Alexey Melnikov
+//
+//  This program is free software; you can redistribute it and/or modify it
+//  under the terms of the GNU General Public License as published by the Free
+//  Software Foundation; either version 2 of the License, or (at your option)
+//  any later version.
+//
+//  This program is distributed in the hope that it will be useful, but WITHOUT
+//  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+//  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+//  more details.
+//
+//  You should have received a copy of the GNU General Public License along
+//  with this program; if not, write to the Free Software Foundation, Inc.,
+//  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//============================================================================ 
+
 module emu
 (
 	//Master input clock
@@ -29,7 +52,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -58,7 +81,7 @@ module emu
 	output        HDMI_FREEZE,
 
 `ifdef MISTER_FB
-	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
+	// Use framebuffer in DDRAM
 	// FB_FORMAT:
 	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
 	//    [3]   : 0=16bits 565 1=16bits 1555
@@ -108,13 +131,6 @@ module emu
 	//ADC
 	inout   [3:0] ADC_BUS,
 
-	//SD-SPI
-	output        SD_SCK,
-	output        SD_MOSI,
-	input         SD_MISO,
-	output        SD_CS,
-	input         SD_CD,
-
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -130,30 +146,13 @@ module emu
 
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
-	output        SDRAM_CKE,
 	output [12:0] SDRAM_A,
 	output  [1:0] SDRAM_BA,
 	inout  [15:0] SDRAM_DQ,
-	output        SDRAM_DQML,
-	output        SDRAM_DQMH,
 	output        SDRAM_nCS,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
-
-`ifdef MISTER_DUAL_SDRAM
-	//Secondary SDRAM
-	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
-	input         SDRAM2_EN,
-	output        SDRAM2_CLK,
-	output [12:0] SDRAM2_A,
-	output  [1:0] SDRAM2_BA,
-	inout  [15:0] SDRAM2_DQ,
-	output        SDRAM2_nCS,
-	output        SDRAM2_nCAS,
-	output        SDRAM2_nRAS,
-	output        SDRAM2_nWE,
-`endif
 
 	input         UART_CTS,
 	output        UART_RTS,
@@ -167,16 +166,21 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	output        USER_OSD,
+	output  [1:0] USER_MODE,
+	input   [7:0] USER_IN,
+	output  [7:0] USER_OUT,
+	input   [7:0] USER_IN2,
+	output  [7:0] USER_OUT2,
 
 	input         OSD_STATUS
 );
 
 assign USER_OUT = '1;
+assign USER_OUT2 = '1;
+
 assign {UART_RTS, UART_TXD, UART_DTR} = 'Z;
-assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
+assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0; 
  
 assign LED_USER  = ioctl_download | led_disk | tape_adc_act;
@@ -204,8 +208,9 @@ video_freak video_freak
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"TeleStrat;;",
+	"TeleStrat;UART9600;",
 	"S0,DSK,Mount Drive A:;",
+//	"S1,DSK,Mount Drive B:;",
 	"-;",
 	"O3,CART,HyperBasic,StratOric;",
 	"O7,Drive Write,Allow,Prohibit;",
@@ -233,7 +238,7 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_sys),
-	.outclk_2(clk_acia),
+	.outclk_1(clk_acia),
 	.locked(locked)
 );
 
@@ -264,13 +269,13 @@ wire  [1:0] buttons;
 wire        forced_scandoubler;
 wire [31:0] status;
 
-wire [31:0] sd_lba[1];
-wire        sd_rd;
-wire        sd_wr;
-wire        sd_ack;
+wire [31:0] sd_lba[2];
+wire  [1:0] sd_rd;
+wire  [1:0] sd_wr;
+wire  [1:0] sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din[1];
+wire  [7:0] sd_buff_din[2];
 wire        sd_buff_wr;
 wire  [1:0] img_mounted;
 wire [31:0] img_size;
@@ -288,7 +293,7 @@ reg  [31:0] status_out;
 wire [21:0] gamma_bus;
 wire        freeze_sync;
 
-hps_io #(.CONF_STR(CONF_STR), .VDNUM(1)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -361,6 +366,7 @@ telestrat telestrat
 	.clk_in           (clk_sys),
 	.RESET            (reset),
 	.clk_acia         (clk_acia),
+	
 	.key_pressed      (ps2_key[9]),
 	.key_code         (ps2_key[7:0]),
 	.key_extended     (ps2_key[8]),
@@ -396,23 +402,28 @@ telestrat telestrat
 	.phi2             (),
 	.pll_locked       (locked),
 	.disk_enable      (1),
+	//
+	.UART_TXD         (UART_TXD),
+	.UART_RXD         (UART_RXD),
+	.UART_CTS         (UART_CTS),
+	.UART_RTS         (UART_RTS),
+	//
 	.rom			      (~rom),
-	.img_mounted      (img_mounted), // signaling that new image has been mounted
-	.img_size         (img_size), // size of image in bytes
+	.img_mounted      (img_mounted[0]), // signaling that new image has been mounted
+	.img_size         (img_size[19:0]), // size of image in bytes
 	.img_wp           (status[7] | img_readonly), // write protect
    .sd_lba           (sd_lba[0]),
-	.sd_rd            (sd_rd),
-	.sd_wr            (sd_wr),
-	.sd_ack           (sd_ack),
+	.sd_rd            (sd_rd[0]),
+	.sd_wr            (sd_wr[0]),
+	.sd_ack           (sd_ack[0]),
 	.sd_buff_addr     (sd_buff_addr),
-	.sd_dout          (sd_buff_dout),
-	.sd_din           (sd_buff_din[0]),
-	.sd_buff_wr       (sd_buff_wr),
+	.sd_buff_dout     (sd_buff_dout),
+	.sd_buff_din      (sd_buff_din[0]),
+	.sd_buff_wr       (sd_buff_wr)
 );
 
-reg [1:0] fdd_ready = 0;
-always @(posedge clk_sys) if(img_mounted[0]) fdd_ready[0] <= |img_size;
-always @(posedge clk_sys) if(img_mounted[1]) fdd_ready[1] <= |img_size;
+reg  fdd_ready = 0;
+always @(posedge clk_sys) if(img_mounted[0]) fdd_ready <= |img_size;
 
 reg rom = 0;
 always @(posedge clk_sys) if(reset) rom <= ~status[3];

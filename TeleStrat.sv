@@ -209,7 +209,7 @@ video_freak video_freak
 `include "build_id.v"
 localparam CONF_STR = {
 	"TeleStrat;UART9600;",
-	"S0,DSK,Mount Drive A:;",
+	"S0,DSKIMG,Mount Drive A:;",
 //	"S1,DSK,Mount Drive B:;",
 	"-;",
 	"O3,CART,HyperBasic,StratOric;",
@@ -410,7 +410,7 @@ telestrat telestrat
 	//
 	.rom			      (~rom),
 	.img_mounted      (img_mounted[0]), // signaling that new image has been mounted
-	.img_size         (img_size[19:0]), // size of image in bytes
+	.img_size         (img_size[31:0]), // size of image in bytes
 	.img_wp           (status[7] | img_readonly), // write protect
    .sd_lba           (sd_lba[0]),
 	.sd_rd            (sd_rd[0]),

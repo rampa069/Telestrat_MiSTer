@@ -19,8 +19,6 @@ set_global_assignment -name VHDL_FILE rtl/HCS3120.vhd
 set_global_assignment -name VHDL_FILE rtl/HCS3119.vhd
 set_global_assignment -name VHDL_FILE rtl/HCS10017.vhd
 set_global_assignment -name VHDL_FILE rtl/via6522.vhd
-set_global_assignment -name VHDL_FILE rtl/m6522.vhd
-set_global_assignment -name VHDL_FILE rtl/m6522-1.vhd
 set_global_assignment -name VHDL_FILE rtl/video.vhd
 set_global_assignment -name VHDL_FILE rtl/telestrat.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE "TeleStrat.sv"

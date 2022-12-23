@@ -69,7 +69,7 @@ architecture Gideon of via6522 is
         ddrb    : std_logic_vector(7 downto 0);
     end record;
     
-    constant pio_default : pio_t := (others => (others => '0'));
+    constant pio_default : pio_t := (others => (others => '1'));
     constant latch_reset_pattern : std_logic_vector(15 downto 0) := X"5550";
 
     signal last_data     : std_logic_vector(7 downto 0) := X"55";

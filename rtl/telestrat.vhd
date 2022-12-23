@@ -57,7 +57,7 @@ entity telestrat is
 	 uart_cts          : in std_logic;
 	 img_mounted:     in std_logic;
 	 img_wp:          in std_logic;
-	 img_size:        in std_logic_vector (19 downto 0);
+	 img_size:        in std_logic_vector (31 downto 0);
 	 sd_lba:          out std_logic_vector (31 downto 0);
 	 sd_rd:           out std_logic;
 	 sd_wr:           out std_logic;
@@ -85,6 +85,9 @@ architecture RTL of telestrat is
     signal cpu_rw             : std_logic;
     signal via1_irq           : std_logic;
 	 signal via2_irq           : std_logic;
+    signal via1_irq_n         : std_logic;
+	 signal via2_irq_n         : std_logic;
+
 	 signal cpu_irq            : std_logic;
       
 	-- VIA 1
@@ -303,7 +306,7 @@ COMPONENT wd1793
 		img_mounted   : IN std_logic;
 
 		wp            : IN std_logic;
-		img_size      : IN std_logic_vector (19 DOWNTO 0);
+		img_size      : IN std_logic_vector (31 DOWNTO 0);
 		sd_lba        : OUT std_logic_vector (31 DOWNTO 0);
 		sd_rd         : OUT std_logic;
 		sd_wr         : OUT std_logic;
@@ -317,10 +320,10 @@ COMPONENT wd1793
 		size_code     : IN std_logic_vector (2 DOWNTO 0); 
 		
 		input_active  : IN std_logic;
-		input_addr    : IN std_logic_vector (19 DOWNTO 0);
+		input_addr    : IN std_logic_vector (31 DOWNTO 0);
 		input_data    : IN std_logic_vector (7 DOWNTO 0);
 		input_wr      : IN std_logic;
-		buff_addr     : OUT std_logic_vector (19 DOWNTO 0);	  
+		buff_addr     : OUT std_logic_vector (31 DOWNTO 0);	  
 		buff_read     : OUT std_logic;	  
 		buff_din      : IN std_logic_vector (7 DOWNTO 0)
 
@@ -331,18 +334,18 @@ END COMPONENT;
 
 begin
 
-cpu_irq <=  via1_irq and via2_irq  and cont_irq and acia_irq;
+cpu_irq <=  via1_irq_n and via2_irq_n  and cont_irq and acia_irq;
 
 inst_cpu : entity work.T65
 	port map (
 		Mode    		=> "00",
       Res_n   		=> RESETn,
-      Enable  		=> ENA_1MHZ,
+      Enable  		=> ENA_1MHZ_N,
       Clk     		=> CLK_IN,
       Rdy     		=> '1',
       Abort_n 		=> '1',
       IRQ_n   		=> cpu_irq,
-      NMI_n   		=> KEYB_NMIn,
+      NMI_n   		=> '1',
       SO_n    		=> '1',
       R_W_n   		=> cpu_rw,
       A       		=> cpu_ad,
@@ -440,126 +443,165 @@ inst_ram4 : entity work.ram16k
 		q 			   => RAM_BANK4_DO
 );
 
---via1_pa_out_oe_l <= not via1_pa_out_oe;
---
---inst_via1 : entity work.via6522
---	port map
---	(
---		clock           => CLK_IN,
---		rising          => ENA_1MHZ,
---		falling         => ENA_1MHZ_N,
---		reset           => not RESETn,
---
---		addr            => cpu_ad(3 downto 0),
---		wen             => not cpu_rw and IOCONTn and  not CS300n,
---		ren             => cpu_rw and IOCONTn and not CS300n,
---		data_in         => cpu_do,
---		data_out        => VIA1_DO,
---
---		port_a_i        => via1_pa_in,
---		port_a_o        => via1_pa_out,
---		port_a_t        => via1_pa_out_oe,
---
---		port_b_i        => via1_pb_in,
---		port_b_o        => via1_pb_out,
---		port_b_t        => open,
---
---		ca1_i           => '1',
---
---		ca2_o           => via1_ca2_out,
---		ca2_i           => '1',
---		ca2_t           => open,
---
---		cb1_i           => K7_TAPEIN,
---		cb1_o           => via1_cb1_out,
---		cb1_t           => open,
---
---		cb2_i           => '1',
---		cb2_o           => via1_cb2_out,
---		cb2_t           => open,
---
---		irq             => via1_irq
---	);
+via1_pa_out_oe_l <= not via1_pa_out_oe;
+via1_irq_n <= not via1_irq;
+via2_irq_n <= not via2_irq;
 
-inst_via1 : entity work.M6522
-	port map (
-		I_RS        => cpu_ad(3 downto 0),
-		I_DATA      => cpu_do(7 downto 0),
-		O_DATA      => VIA1_DO,
-		I_RW_L      => cpu_rw,
-		I_CS1       => '1', --IOCONTn,
-		I_CS2_L     => CS300n,
-		
-		O_IRQ_L     => via1_irq, 
+inst_via1 : entity work.via6522
+	port map
+	(
+		clock           => CLK_IN,
+		rising          => ENA_1MHZ,
+		falling         => ENA_1MHZ_N,
+		reset           => not RESETn,
 
-      --PORT A		
-		I_CA1       => '1',       -- PRT_ACK
-		I_CA2       => '1',       -- psg_bdir
-		O_CA2       => via1_ca2_out,
-		O_CA2_OE_L  => open,
-		
-		I_PA        => via1_pa_in,
-		O_PA        => via1_pa_out,
-		O_PA_OE_L   => via1_pa_out_oe_l,
-		
-		-- PORT B
-		I_CB1       => K7_TAPEIN,
-		O_CB1       => via1_cb1_out,
-      O_CB1_OE_L  => via1_cb1_oe_l,
-		
-		I_CB2       => '1',
-		O_CB2       => via1_cb2_out,
-		O_CB2_OE_L  => open,
-		
-		I_PB        => via1_pb_in,
-		O_PB        => via1_pb_out,
+		addr            => cpu_ad(3 downto 0),
+		wen             => not cpu_rw  and  not CS300n,
+		ren             => cpu_rw and not CS300n,
+		data_in         => cpu_do,
+		data_out        => VIA1_DO,
 
-		RESET_L     => RESETn, 
-		I_P2_H      => ula_phi2,
-		ENA_4       => ula_CLK_4_en,
-		CLK         => CLK_IN
-);
+		port_a_i        => via1_pa_in,
+		port_a_o        => via1_pa_out,
+		port_a_t        => via1_pa_out_oe,
 
-inst_via2 : entity work.M6522_1
-	port map (
-		I_RS        => cpu_ad(3 downto 0),
-		I_DATA      => cpu_do(7 downto 0),
-		O_DATA      => VIA2_DO,
-		O_DATA_OE_L => VIA2_DO_OE,
-		I_RW_L      => cpu_rw,
-		I_CS1       => '1',
-		I_CS2_L     => CS320n,
-		
-		O_IRQ_L     => via2_irq, 
+		port_b_i        => via1_pb_in,
+		port_b_o        => via1_pb_out,
+		port_b_t        => open,
 
-      --PORT A		
-		I_CA1       => '1',       
-		I_CA2       => '1',       
-		O_CA2       => open,
-		O_CA2_OE_L  => open,
-		
-		I_PA        => via2_pa_in,
-		O_PA        => via2_pa_out,
-		O_PA_OE_L   => via2_pa_out_oe,
-		
-		-- PORT B
-		I_CB1       => '1',
-		O_CB1       => open,
-      O_CB1_OE_L  => open,
-		
-		I_CB2       => '1',
-		O_CB2       => open,
-		O_CB2_OE_L  => open,
-		
-		I_PB        => via2_pb_in,
-		O_PB        => via2_pb_out,
-		O_PB_OE_L   => via2_pb_out_oe,
-		RESET_L     => RESETn, 
-		I_P2_H      => ula_phi2,
-		ENA_4       => ula_CLK_4_en,
-		CLK         => CLK_IN
-);
+		ca1_i           => '1',
 
+		ca2_o           => via1_ca2_out,
+		ca2_i           => '1',
+		ca2_t           => open,
+
+		cb1_i           => K7_TAPEIN,
+		cb1_o           => via1_cb1_out,
+		cb1_t           => open,
+
+		cb2_i           => '1',
+		cb2_o           => via1_cb2_out,
+		cb2_t           => open,
+
+		irq             => via1_irq
+	);
+
+--inst_via1 : entity work.M6522
+--	port map (
+--		I_RS        => cpu_ad(3 downto 0),
+--		I_DATA      => cpu_do(7 downto 0),
+--		O_DATA      => VIA1_DO,
+--		I_RW_L      => cpu_rw,
+--		I_CS1       => '1', --IOCONTn,
+--		I_CS2_L     => CS300n,
+--		
+--		O_IRQ_L     => via1_irq_n, 
+--
+--      --PORT A		
+--		I_CA1       => '1',       -- PRT_ACK
+--		I_CA2       => '1',       -- psg_bdir
+--		O_CA2       => via1_ca2_out,
+--		O_CA2_OE_L  => open,
+--		
+--		I_PA        => via1_pa_in,
+--		O_PA        => via1_pa_out,
+--		O_PA_OE_L   => via1_pa_out_oe_l,
+--		
+--		-- PORT B
+--		I_CB1       => K7_TAPEIN,
+--		O_CB1       => via1_cb1_out,
+--      O_CB1_OE_L  => via1_cb1_oe_l,
+--		
+--		I_CB2       => '1',
+--		O_CB2       => via1_cb2_out,
+--		O_CB2_OE_L  => open,
+--		
+--		I_PB        => via1_pb_in,
+--		O_PB        => via1_pb_out,
+--
+--		RESET_L     => RESETn, 
+--		I_P2_H      => ula_phi2,
+--		ENA_4       => ula_CLK_4_en,
+--		CLK         => CLK_IN
+--);
+
+--inst_via2 : entity work.M6522_1
+--	port map (
+--		I_RS        => cpu_ad(3 downto 0),
+--		I_DATA      => cpu_do(7 downto 0),
+--		O_DATA      => VIA2_DO,
+--		O_DATA_OE_L => VIA2_DO_OE,
+--		I_RW_L      => cpu_rw,
+--		I_CS1       => '1',
+--		I_CS2_L     => CS320n,
+--		
+--		O_IRQ_L     => via2_irq_n, 
+--
+--      --PORT A		
+--		I_CA1       => '1',       
+--		I_CA2       => '1',       
+--		O_CA2       => open,
+--		O_CA2_OE_L  => open,
+--		
+--		I_PA        => via2_pa_in,
+--		O_PA        => via2_pa_out,
+--		O_PA_OE_L   => via2_pa_out_oe,
+--		
+--		-- PORT B
+--		I_CB1       => '1',
+--		O_CB1       => open,
+--      O_CB1_OE_L  => open,
+--		
+--		I_CB2       => '1',
+--		O_CB2       => open,
+--		O_CB2_OE_L  => open,
+--		
+--		I_PB        => via2_pb_in,
+--		O_PB        => via2_pb_out,
+--		O_PB_OE_L   => via2_pb_out_oe,
+--		RESET_L     => RESETn, 
+--		I_P2_H      => ula_phi2,
+--		ENA_4       => ula_CLK_4_en,
+--		CLK         => CLK_IN
+--);
+
+inst_via2 : entity work.via6522
+	port map
+	(
+		clock           => CLK_IN,
+		rising          => ENA_1MHZ,
+		falling         => ENA_1MHZ_N,
+		reset           => not RESETn,
+
+		addr            => cpu_ad(3 downto 0),
+		wen             => not cpu_rw  and  not CS320n,
+		ren             => cpu_rw and not CS320n,
+		data_in         => cpu_do,
+		data_out        => VIA2_DO,
+
+		port_a_i        => via2_pa_in,
+		port_a_o        => via2_pa_out,
+		port_a_t        => via2_pa_out_oe,
+
+		port_b_i        => via2_pb_in,
+		port_b_o        => via2_pb_out,
+		port_b_t        => open,
+
+		ca1_i           => '1',
+		ca2_o           => open,
+		ca2_i           => '1',
+		ca2_t           => open,
+
+		cb1_i           => '1',
+		cb1_o           => open,
+		cb1_t           => open,
+
+		cb2_i           => '1',
+		cb2_o           => open,
+		cb2_t           => open,
+
+		irq             => via2_irq
+	);
 
 -- PSG
  psg_a: psg
@@ -614,7 +656,6 @@ HCS3119: work.HCS3119
           PA        => via2_pa_out (2 downto 0),            -- VIA1 PA Lines
 
           CS300n    => CS300n,
---          CS310n    => CS310n,
 			 CS314n    => CS314n,
 			 CS31Cn    => CS31Cn,
           CS320n    => CS320n,
@@ -682,7 +723,6 @@ HCS10017 : entity work.HCS10017
 		SRAM_WE    	=> ula_WE_SRAM,
 		LATCH_SRAM 	=> ula_LATCH_SRAM,
 		CSIOn       => ula_CSIOn,
-      --CSROMn     	=> ula_CSROMn,
       CSRAMn     	=> ula_CSRAMn,
       R          	=> VIDEO_R,
       G          	=> VIDEO_G,
@@ -746,7 +786,7 @@ fdc0 : wd1793
 		prepare       => fdd_prepare,
 		img_mounted   => img_mounted, 
 		wp            => img_wp, 
-		img_size      => img_size (19 downto 0), 
+		img_size      => img_size (31 downto 0), 
 		sd_lba        => sd_lba, 
 		sd_rd         => sd_rd, 
 		sd_wr         => sd_wr, 
@@ -793,11 +833,11 @@ via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
 
 
-cpu_di <= VIA1_DO          when cs300n = '0' else --and IOCONTn='1' else
+cpu_di <= VIA1_DO          when cs300n = '0' else 
           CONT_D_OUT       when cs314n = '0' else           
           FDC_DAL_0_OUT    when CS1793n = '0' else 
-			 ACIA_DO          when CS31Cn = '0' else --and IOCONTn='1' else
-			 VIA2_DO          when CS320n = '0' else --and IOCONTn='1' else
+			 ACIA_DO          when CS31Cn = '0' else 
+			 VIA2_DO          when CS320n = '0' else 
 			 ROM_TELMON_DO    when CS6n = '0' and rom = '0' else
 			 ROM_STRATORIC_DO when CS6n = '0' and rom = '1' else
 			 ROM_HYPERBAS_DO  when CS5n = '0' and rom = '0' else

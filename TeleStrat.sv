@@ -175,8 +175,8 @@ localparam CONF_STR = {
 	"TeleStrat;UART9600;",
 	"S0,DSKIMG,Mount Drive A:;",
    "F1,TAP,Load TAP file;",
+	"F2,ROM,Load Cartridge;",
 	"-;",
-	"O3,CART,HyperBasic,StratOric;",
 	"O7,Drive Write,Allow,Prohibit;",
 	"-;",
 	"O[51:50],Tape Audio,Mute,Low,High;",
@@ -294,6 +294,19 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 	.gamma_bus(gamma_bus)
 );
 
+//////////////////////// ROM CARTRIDGE ////////////
+
+wire [15:0] rom_address;
+wire [7:0]  rom_data;
+wire cart_download = ioctl_index==2 && ioctl_download;
+cart  cart
+(
+  .clock      (clk_sys), 
+  .address    (cart_download ? ioctl_addr: rom_address),
+  .data       (ioctl_dout),
+  .wren       (cart_download? ioctl_wr : 1'b0),
+  .q          (rom_data)
+);
 
 ///////////////////////////////////////////////////
 
@@ -362,6 +375,11 @@ telestrat telestrat
 	.ram_cs           (ram_cs),
 	.ram_oe           (),
 	.ram_we           (ram_we),
+	
+	.rom_ad           (rom_address),
+	.rom_q            (rom_data),
+	
+	
 	.joystick_0       (joy0),
 	.joystick_1       (joy1),
 	.fd_led           (led_disk),
@@ -378,7 +396,6 @@ telestrat telestrat
 	.UART_CTS         (UART_CTS),
 	.UART_RTS         (UART_RTS),
 	//
-	.rom			      (~rom),
 	.img_mounted      (img_mounted[0]), // signaling that new image has been mounted
 	.img_size         (img_size[31:0]), // size of image in bytes
 	.img_wp           (status[7] | img_readonly), // write protect
@@ -394,9 +411,6 @@ telestrat telestrat
 
 reg  fdd_ready = 0;
 always @(posedge clk_sys) if(img_mounted[0]) fdd_ready <= |img_size;
-
-reg rom = 0;
-always @(posedge clk_sys) if(reset) rom <= ~status[3];
 
 
 /////////////////// VIDEO PROCESSING ////////////////////////////////
@@ -512,14 +526,14 @@ always @(posedge clk_sys) begin
 end
 
 always @(posedge clk_sys) begin
-	ioctl_downlD <= ioctl_download;
-	if(ioctl_downlD & ~ioctl_download) tape_loaded <= 1'b1;
+	ioctl_downlD <= ioctl_index==1;
+	if(ioctl_downlD & ~ioctl_index==1) tape_loaded <= 1'b1;
 end
 
 cassette cassette (
   .clk(clk_sys),
   .reset(reset),
-  .rewind(tapeRewind | (load_tape && ioctl_download)),
+  .rewind(tapeRewind | (load_tape && ioctl_download && ioctl_index==1)),
   .en(cas_relay && tape_loaded && ~tapeUseADC), 
   .tape_addr(tape_addr),
   .tape_data(tape_data),

@@ -121,8 +121,8 @@ wd177x_dpram sbuf
 	.wren_a(sd_buff_wr & sd_ack),
 	.q_a(sd_buff_din),
 
-	//.address_b(scan_active ? img_size[19] ? scan_addr[9:0] : scan_addr[8:0] : byte_addr),
-	.address_b(scan_active ? scan_addr[8:0] : byte_addr),
+	.address_b(scan_active ? img_size[19] ? scan_addr[9:0] : scan_addr[8:0] : byte_addr),
+	//.address_b(scan_active ? scan_addr[8:0] : byte_addr),
 	.data_b(format ? 8'd0 : din),
 	.wren_b(wre & buff_wr & (addr == A_DATA) & ~scan_active),
 	.q_b(buff_dout)
@@ -475,7 +475,7 @@ always @(posedge clk_sys) begin
 								if (!wdreg_sector) wdreg_sector <=1;
 								
 								else if(wdreg_sector > sectors_per_track||
-									     wdreg_track > 79) begin
+									     wdreg_track > 84) begin //79
 									      RNF <= format? 1'b0: 1'b1;  
 									      state <= STATE_ENDCOMMAND;
 								end else begin

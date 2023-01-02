@@ -40,6 +40,10 @@ entity telestrat is
 	 ram_cs            : out std_logic;
 	 ram_oe            : out std_logic;
 	 ram_we            : out std_logic;
+
+	 rom_ad            : out std_logic_vector(15 downto 0);
+	 rom_q             : in  std_logic_vector( 7 downto 0);
+
 	 phi2              : out std_logic;
 	 fd_led            : out std_logic;
 	 fdd_ready         : in std_logic;
@@ -50,7 +54,6 @@ entity telestrat is
 	 joystick_1        : in std_logic_vector( 7 downto 0);
 	 pll_locked        : in std_logic;
 	 disk_enable       : in std_logic;
-	 rom               : in std_logic;
 	 uart_txd          : out std_logic;
 	 uart_rxd          : in std_logic;
 	 uart_rts          : out std_logic;
@@ -160,6 +163,7 @@ architecture RTL of telestrat is
 	SIGNAL CS5n   : STD_LOGIC;
 	SIGNAL CS6n   : STD_LOGIC;
 	SIGNAL CS1793n: STD_LOGIC;
+	SIGNAL ROM_CSn: STD_LOGIC;
 	-- ACIA
 	signal ACIA_DO: STD_LOGIC_VECTOR(7 downto 0);
 	signal acia_irq: STD_LOGIC;
@@ -205,16 +209,6 @@ architecture RTL of telestrat is
 --	 signal lSRAM_D            : std_logic_vector(7 downto 0);
 	 signal ENA_1MHZ           : std_logic;
 	 signal ENA_1MHZ_N         : std_logic;
-	 --- ROM
-    signal ROM_TELMON_DO   	: std_logic_vector(7 downto 0);
-	 signal ROM_HYPERBAS_DO    : std_logic_vector(7 downto 0);
-	 signal ROM_TELEASS_DO     : std_logic_vector(7 downto 0);
-	 signal ROM_TELMATIC_DO    : std_logic_vector(7 downto 0);
-	 signal ROM_STRATORIC_DO   : std_logic_vector(7 downto 0);
-	 --
-	 signal ROM_ATMOS_DO       : std_logic_vector(7 downto 0);
-	 signal ROM_ORIC1_DO       : std_logic_vector(7 downto 0);
-	 
 	 -- RAM
 	 signal RAM_BANK0_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK1_DO       :std_logic_vector(7 downto 0);
@@ -359,50 +353,6 @@ ram_oe  <= '0' when RESETn = '0' else ula_OE_SRAM;
 ram_we  <= '0' when RESETn = '0' else ula_WE_SRAM;
 phi2    <= ula_PHI2;
 
-
-inst_atmos : entity work.BASIC11A  -- Oric Atmos ROM
-	port map (
-		clk  			=> CLK_IN,
-		addr 			=> cpu_ad(13 downto 0),
-		data 			=> ROM_ATMOS_DO
-);
-inst_oric1 : entity work.BASIC10  -- Oric 1 ROM
-	port map (
-		clk  			=> CLK_IN,
-		addr 			=> cpu_ad(13 downto 0),
-		data 			=> ROM_ORIC1_DO
-);
-inst_stratoric : entity work.stratoric  -- Telmon24
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		q 			   => ROM_STRATORIC_DO
-);
-
-inst_telmon : entity work.telmon24  -- Telmon24
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		q 			   => ROM_TELMON_DO
-);
-inst_hyperbas : entity work.hyperbas  -- Hyperbasic
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		q 			   => ROM_HYPERBAS_DO
-);
-inst_teleass : entity work.teleass 
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		q 			   => ROM_TELEASS_DO
-);
-inst_telmatic : entity work.telmatic
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		q 			   => ROM_TELMATIC_DO
-);
 
 
 inst_ram1 : entity work.ram16k
@@ -742,19 +692,16 @@ joy_mux <= not joya when via2_pb_out(7) = '1' else
 via2_pb_in  <=  via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
 via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
-
+ROM_CSn <= CS6n and cS5n and CS4n; 
+rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
+  
 
 cpu_di <= VIA1_DO          when cs300n = '0' else 
           CONT_D_OUT       when cs314n = '0' else           
           FDC_DAL_0_OUT    when CS1793n = '0' else 
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 
-			 ROM_TELMON_DO    when CS6n = '0' and rom = '0' else
-			 ROM_STRATORIC_DO when CS6n = '0' and rom = '1' else
-			 ROM_HYPERBAS_DO  when CS5n = '0' and rom = '0' else
-			 ROM_ATMOS_DO     when CS5n = '0' and rom = '1' else
-			 ROM_TELEASS_DO   when CS4n = '0' and rom = '0' else
-			 ROM_ORIC1_DO     when CS4n = '0' and rom = '1' else
+          ROM_Q            when ROM_CSn = '0' else
 			 RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
 			 RAM_BANK2_DO     when CS1n = '0' else

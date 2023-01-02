@@ -1,46 +1,10 @@
 //============================================================================
-//  Oric-1 and Oric Atmos
-//  Copyright (C) rampa
+//  Oric Telestrat
+//  rampa@encomix.org
 //
-//  Port to MiSTer by Sorgelig
-//
-//  This program is free software; you can redistribute it and/or modify it
-//  under the terms of the GNU General Public License as published by the Free
-//  Software Foundation; either version 2 of the License, or (at your option)
-//  any later version.
-//
-//  This program is distributed in the hope that it will be useful, but WITHOUT
-//  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-//  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-//  more details.
-//
-//  You should have received a copy of the GNU General Public License along
-//  with this program; if not, write to the Free Software Foundation, Inc.,
-//  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//  Tape loader by JAson-A and Flandango.
 //============================================================================
 
-//============================================================================
-//  Atari ST
-//  Copyright (C) Till Harbaum <till@harbaum.org> 
-//  Copyright (C) Gyorgy Szombathelyi <gyurco@freemail.hu>
-//
-//  Port to MiSTer
-//  Copyright (C) Alexey Melnikov
-//
-//  This program is free software; you can redistribute it and/or modify it
-//  under the terms of the GNU General Public License as published by the Free
-//  Software Foundation; either version 2 of the License, or (at your option)
-//  any later version.
-//
-//  This program is distributed in the hope that it will be useful, but WITHOUT
-//  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-//  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-//  more details.
-//
-//  You should have received a copy of the GNU General Public License along
-//  with this program; if not, write to the Free Software Foundation, Inc.,
-//  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-//============================================================================ 
 
 module emu
 (
@@ -210,10 +174,14 @@ video_freak video_freak
 localparam CONF_STR = {
 	"TeleStrat;UART9600;",
 	"S0,DSKIMG,Mount Drive A:;",
-//	"S1,DSK,Mount Drive B:;",
+   "F1,TAP,Load TAP file;",
 	"-;",
 	"O3,CART,HyperBasic,StratOric;",
 	"O7,Drive Write,Allow,Prohibit;",
+	"-;",
+	"O[51:50],Tape Audio,Mute,Low,High;",
+	"O[52],Tape Input,File,ADC;",
+	"h0T[53],Rewind;",
 	"-;",
 	"ODE,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"OAC,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
@@ -226,7 +194,7 @@ localparam CONF_STR = {
 };
 
 
-///////////////////////////////////////////////////
+/////////////////////// CLOCKS ////////////////////////////
 
 wire        clk_sys;
 wire        clk_acia;
@@ -259,7 +227,7 @@ always @(posedge clk_sys) begin
 	
 end
 
-///////////////////////////////////////////////////
+//////////////////// HPS ///////////////////////////////
 
 wire [10:0] ps2_key;
 
@@ -267,7 +235,7 @@ wire [15:0] joy0;
 wire [15:0] joy1;
 wire  [1:0] buttons;
 wire        forced_scandoubler;
-wire [31:0] status;
+wire [127:0] status;
 
 wire [31:0] sd_lba[2];
 wire  [1:0] sd_rd;
@@ -344,7 +312,7 @@ wire  [1:0] stereo = status [9:8];
 wire        r, g, b; 
 wire        hs, vs, HBlank, VBlank;
 wire        clk_pix;
-wire        tape_in, tape_out;
+
 
 wire [15:0] ram_ad;
 wire  [7:0] ram_d;
@@ -383,9 +351,11 @@ telestrat telestrat
 	.VIDEO_VSYNC		(vs),
 	.VIDEO_HBLANK		(HBlank),
 	.VIDEO_VBLANK		(VBlank),
-	.K7_TAPEIN			(tape_adc),
-	.K7_TAPEOUT			(tape_out),
-	.K7_REMOTE			(),
+
+	.K7_TAPEIN        (tape_in ),
+	.K7_TAPEOUT       (tape_out),
+	.K7_REMOTE        (cas_relay),
+
 	.ram_ad           (ram_ad),
 	.ram_d            (ram_d),
 	.ram_q            (ram_q),
@@ -429,7 +399,7 @@ reg rom = 0;
 always @(posedge clk_sys) if(reset) rom <= ~status[3];
 
 
-///////////////////////////////////////////////////
+/////////////////// VIDEO PROCESSING ////////////////////////////////
 
 reg clk_pix2;
 always @(posedge clk_sys) clk_pix2 <= clk_pix;
@@ -469,12 +439,18 @@ video_mixer #(.LINE_LENGTH(250), .HALF_DEPTH(1), .GAMMA(1)) video_mixer
 	.hq2x(scale==1)
 );
 
-///////////////////////////////////////////////////
+////////////////////// AUDIO MIXING /////////////////////////////
 wire [15:0] psg_l;
 wire [15:0] psg_r;
 reg [12:0] psg_ab;
 reg [12:0] psg_ac;
 reg [12:0] psg_bc;
+wire [7:0] tapeAudio;
+
+
+assign tapeAudio = {|tapeVolume ? (tapeVolume == 2'd1 ? {1'b0,tape_in} : {tape_in,1'b0} ) : 2'b00,6'b00};
+
+
 
 always @ (clk_sys,psg_a,psg_b,psg_c) begin
  psg_ab <= {{1'b0,psg_a} + {1'b0,psg_b}};
@@ -482,11 +458,76 @@ always @ (clk_sys,psg_a,psg_b,psg_c) begin
  psg_bc <= {{1'b0,psg_b} + {1'b0,psg_c}};
 end
 
-assign AUDIO_L = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_ab,3'b0}: {psg_ac,3'b0};
-assign AUDIO_R = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_bc,3'b0}: {psg_bc,3'b0};
+assign psg_l = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_ab,3'b0}: {psg_ac,3'b0};
+assign psg_r = (stereo == 2'b00) ? {psg_out,2'b0} : (stereo == 2'b01) ? {psg_bc,3'b0}: {psg_bc,3'b0};
+
+assign AUDIO_L = psg_l + tapeAudio;
+assign AUDIO_R = psg_r + tapeAudio;
+
+//////////////////////// TAPE LOADING ///////////////////////////
+
+wire [1:0] tapeVolume  = status[51:50];
+wire       tapeUseADC = status[52];
+wire       tapeRewind = status[53];
+wire       tape_in;
+wire       tape_out;
+
+wire tape_clk;
+always @(posedge clk_sys) begin
+	if (reset)
+    	tape_clk <= 1'b0;
+	else
+    	tape_clk <= ~tape_clk;	
+end
+
+wire casdout;
+wire cas_relay;
+
+wire        load_tape = ioctl_index==1;
+reg  [15:0] tape_end;
+reg         tape_loaded = 1'b0;
+reg         ioctl_downlD;
+
+//Tape Writting - Not Implemented ATM - Flandango
+//reg         tape_wr;
+//reg [7:0]   tape_dout;
 
 
-///////////////////////////////////////////////////
+wire [15:0] tape_addr;
+wire [7:0]  tape_data;
+
+
+spram #(.address_width(16)) tapecache (
+  .clock(clk_sys),
+
+  .address((ioctl_index == 1 && ioctl_download) ? ioctl_addr: tape_addr),
+  .data(ioctl_dout),
+  .wren(ioctl_wr && load_tape),
+  .q(tape_data)
+);
+
+
+always @(posedge clk_sys) begin
+ if (load_tape) tape_end <= ioctl_addr[15:0];
+end
+
+always @(posedge clk_sys) begin
+	ioctl_downlD <= ioctl_download;
+	if(ioctl_downlD & ~ioctl_download) tape_loaded <= 1'b1;
+end
+
+cassette cassette (
+  .clk(clk_sys),
+  .reset(reset),
+  .rewind(tapeRewind | (load_tape && ioctl_download)),
+  .en(cas_relay && tape_loaded && ~tapeUseADC), 
+  .tape_addr(tape_addr),
+  .tape_data(tape_data),
+
+  .tape_end(tape_end),
+  .data(casdout)
+);
+
 wire tape_adc, tape_adc_act;
 ltc2308_tape ltc2308_tape
 (
@@ -495,5 +536,8 @@ ltc2308_tape ltc2308_tape
 	.dout(tape_adc),
 	.active(tape_adc_act)
 );
+
+assign tape_in = tapeUseADC ? tape_adc : casdout;
+
 
 endmodule

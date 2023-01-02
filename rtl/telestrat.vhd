@@ -276,11 +276,12 @@ PORT (
 );
 END COMPONENT;
 
-COMPONENT wd1793
+COMPONENT wd17xx
 	GENERIC 
 	(
-		RWMODE          : INTEGER := 1;
-		EDSK            : INTEGER := 1
+		MODEL           : INTEGER := 3;
+		EDSK            : INTEGER := 1;
+		CLK_EN          : INTEGER :=24000
 	);
 	PORT 
 	(
@@ -293,7 +294,7 @@ COMPONENT wd1793
 		wr            : IN std_logic;
 		addr          : IN std_logic_vector (1 DOWNTO 0);
 		din           : IN std_logic_vector (7 DOWNTO 0);
-		dout          : OUT std_logic_vector (7 DOWNTO 0);
+		dout          : OUT std_logic_vector(7 DOWNTO 0);
 
 		intrq         : OUT std_logic;
 		drq           : OUT std_logic;
@@ -304,9 +305,11 @@ COMPONENT wd1793
 		side          : IN std_logic;
 
 		img_mounted   : IN std_logic;
+    	img_size      : IN std_logic_vector (31 DOWNTO 0);
 
+		fdd_sel       : IN std_logic_vector(3 downto 0);
 		wp            : IN std_logic;
-		img_size      : IN std_logic_vector (31 DOWNTO 0);
+
 		sd_lba        : OUT std_logic_vector (31 DOWNTO 0);
 		sd_rd         : OUT std_logic;
 		sd_wr         : OUT std_logic;
@@ -317,15 +320,7 @@ COMPONENT wd1793
 		sd_buff_wr    : IN std_logic;
 
 		prepare       : OUT std_logic;
-		size_code     : IN std_logic_vector (2 DOWNTO 0); 
-		
-		input_active  : IN std_logic;
-		input_addr    : IN std_logic_vector (31 DOWNTO 0);
-		input_data    : IN std_logic_vector (7 DOWNTO 0);
-		input_wr      : IN std_logic;
-		buff_addr     : OUT std_logic_vector (31 DOWNTO 0);	  
-		buff_read     : OUT std_logic;	  
-		buff_din      : IN std_logic_vector (7 DOWNTO 0)
+		size_code     : IN std_logic_vector (2 DOWNTO 0)
 
 	);
 END COMPONENT;
@@ -485,85 +480,6 @@ inst_via1 : entity work.via6522
 
 		irq             => via1_irq
 	);
-
---inst_via1 : entity work.M6522
---	port map (
---		I_RS        => cpu_ad(3 downto 0),
---		I_DATA      => cpu_do(7 downto 0),
---		O_DATA      => VIA1_DO,
---		I_RW_L      => cpu_rw,
---		I_CS1       => '1', --IOCONTn,
---		I_CS2_L     => CS300n,
---		
---		O_IRQ_L     => via1_irq_n, 
---
---      --PORT A		
---		I_CA1       => '1',       -- PRT_ACK
---		I_CA2       => '1',       -- psg_bdir
---		O_CA2       => via1_ca2_out,
---		O_CA2_OE_L  => open,
---		
---		I_PA        => via1_pa_in,
---		O_PA        => via1_pa_out,
---		O_PA_OE_L   => via1_pa_out_oe_l,
---		
---		-- PORT B
---		I_CB1       => K7_TAPEIN,
---		O_CB1       => via1_cb1_out,
---      O_CB1_OE_L  => via1_cb1_oe_l,
---		
---		I_CB2       => '1',
---		O_CB2       => via1_cb2_out,
---		O_CB2_OE_L  => open,
---		
---		I_PB        => via1_pb_in,
---		O_PB        => via1_pb_out,
---
---		RESET_L     => RESETn, 
---		I_P2_H      => ula_phi2,
---		ENA_4       => ula_CLK_4_en,
---		CLK         => CLK_IN
---);
-
---inst_via2 : entity work.M6522_1
---	port map (
---		I_RS        => cpu_ad(3 downto 0),
---		I_DATA      => cpu_do(7 downto 0),
---		O_DATA      => VIA2_DO,
---		O_DATA_OE_L => VIA2_DO_OE,
---		I_RW_L      => cpu_rw,
---		I_CS1       => '1',
---		I_CS2_L     => CS320n,
---		
---		O_IRQ_L     => via2_irq_n, 
---
---      --PORT A		
---		I_CA1       => '1',       
---		I_CA2       => '1',       
---		O_CA2       => open,
---		O_CA2_OE_L  => open,
---		
---		I_PA        => via2_pa_in,
---		O_PA        => via2_pa_out,
---		O_PA_OE_L   => via2_pa_out_oe,
---		
---		-- PORT B
---		I_CB1       => '1',
---		O_CB1       => open,
---      O_CB1_OE_L  => open,
---		
---		I_CB2       => '1',
---		O_CB2       => open,
---		O_CB2_OE_L  => open,
---		
---		I_PB        => via2_pb_in,
---		O_PB        => via2_pb_out,
---		O_PB_OE_L   => via2_pb_out_oe,
---		RESET_L     => RESETn, 
---		I_P2_H      => ula_phi2,
---		ENA_4       => ula_CLK_4_en,
---		CLK         => CLK_IN
---);
 
 inst_via2 : entity work.via6522
 	port map
@@ -755,11 +671,12 @@ inst_ACIA : work.ACIA
 
 
 
-fdc0 : wd1793
+fdc0 : wd17xx
 	GENERIC MAP
 	(
-	EDSK => 1, 
-	RWMODE => 1
+	EDSK  => 1, 
+	MODEL => 3,
+	CLK_EN=> 24000
 	)
 	PORT MAP
 	(
@@ -781,8 +698,9 @@ fdc0 : wd1793
 		busy          => fd_led, 
 
 		layout        => '0' , --fdd_layout, 
-		size_code     => "001", 
+		size_code     => "101", 
 		side          => SSEL,
+		fdd_sel       => DS3 & DS2 & DS1 & DS0, 
 		prepare       => fdd_prepare,
 		img_mounted   => img_mounted, 
 		wp            => img_wp, 
@@ -794,15 +712,8 @@ fdc0 : wd1793
 		sd_buff_addr  => sd_buff_addr, 
 		sd_buff_dout  => sd_buff_dout, 
 		sd_buff_din   => sd_buff_din,
-		sd_buff_wr    => sd_buff_wr,
-	
-		input_active  => '0',
-		input_addr    => (others => '0'),	
-		input_data    => (others => '0'),
-		input_wr      => '0',
-		buff_din      => (others => '0')
-		
-		); 
+		sd_buff_wr    => sd_buff_wr
+); 
  
 
 

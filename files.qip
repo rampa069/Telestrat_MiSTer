@@ -13,7 +13,7 @@ set_global_assignment -name VHDL_FILE rtl/rom/MICRODIS.vhd
 set_global_assignment -name VHDL_FILE rtl/rom/BASIC10.vhd
 set_global_assignment -name VHDL_FILE rtl/rom/BASIC11A.vhdl
 set_global_assignment -name QIP_FILE rtl/ram16k.qip
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/wd1793.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/wd17xx.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/keyboard.sv
 set_global_assignment -name VHDL_FILE rtl/HCS3120.vhd
 set_global_assignment -name VHDL_FILE rtl/HCS3119.vhd
@@ -21,4 +21,8 @@ set_global_assignment -name VHDL_FILE rtl/HCS10017.vhd
 set_global_assignment -name VHDL_FILE rtl/via6522.vhd
 set_global_assignment -name VHDL_FILE rtl/video.vhd
 set_global_assignment -name VHDL_FILE rtl/telestrat.vhd
+set_global_assignment -name VHDL_FILE rtl/dpram.vhd
+set_global_assignment -name VERILOG_FILE rtl/cassette.v
+set_global_assignment -name VERILOG_FILE rtl/square_gen.v
+set_global_assignment -name VERILOG_FILE rtl/spram.v
 set_global_assignment -name SYSTEMVERILOG_FILE "TeleStrat.sv"

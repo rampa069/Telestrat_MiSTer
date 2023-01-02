@@ -692,7 +692,7 @@ joy_mux <= not joya when via2_pb_out(7) = '1' else
 via2_pb_in  <=  via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
 via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
-ROM_CSn <= CS6n and cS5n and CS4n; 
+ROM_CSn <= CS6n and cS5n and CS4n and CS3n; 
 rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
   
 
@@ -702,7 +702,7 @@ cpu_di <= VIA1_DO          when cs300n = '0' else
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 
           ROM_Q            when ROM_CSn = '0' else
-			 RAM_BANK4_DO     when CS3n = '0' else
+--			 RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
 			 RAM_BANK2_DO     when CS1n = '0' else
 			 RAM_BANK1_DO     when CS0n = '0' else

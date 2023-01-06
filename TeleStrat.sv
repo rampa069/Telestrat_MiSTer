@@ -233,6 +233,10 @@ wire [10:0] ps2_key;
 
 wire [15:0] joy0;
 wire [15:0] joy1;
+wire  [4:0] joy_t0={joy0[3],joy0[2],joy0[4],joy0[1],joy0[0]}; //Up,Down,Fire,Left,Right
+wire  [4:0] joy_t1={joy1[3],joy1[2],joy1[4],joy1[1],joy1[0]};
+wire        fire2_t1=joy1[5]; 
+wire        fire3_t1=joy1[6]; 
 wire  [1:0] buttons;
 wire        forced_scandoubler;
 wire [127:0] status;
@@ -296,9 +300,23 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 
 //////////////////////// ROM CARTRIDGE ////////////
 
-wire [15:0] rom_address;
-wire [7:0]  rom_data;
+wire[15:0] rom_address;
+wire[7:0]  rom_data;
+reg [1:0]  rom_pages;
+reg [3:0]  rom_mask;
+
 wire cart_download = ioctl_index==2 && ioctl_download;
+
+always @(posedge clk_sys) begin
+    if(ioctl_wr && ioctl_index==2) rom_pages <= ioctl_addr[15:14];
+	 case (rom_pages)
+	   2'b00: rom_mask <= 4'b1000; // initial state
+	   2'b01: rom_mask <= 4'b1100;
+	   2'b10: rom_mask <= 4'b1000;
+	   2'b11: rom_mask <= 4'b1111;
+    endcase
+end
+
 cart  cart
 (
   .clock      (clk_sys), 
@@ -378,10 +396,13 @@ telestrat telestrat
 	
 	.rom_ad           (rom_address),
 	.rom_q            (rom_data),
+	.rom_mask         (rom_mask),
 	
 	
-	.joystick_0       (joy0),
-	.joystick_1       (joy1),
+	.joystick_0       (joy_t0),
+	.joystick_1       (joy_t1),
+	.fire2_t1         (fire2_t1),
+	.fire3_t1         (fire3_t1),
 	.fd_led           (led_disk),
 	.fdd_ready        (fdd_ready),
 	.fdd_busy         (),
@@ -497,7 +518,7 @@ end
 wire casdout;
 wire cas_relay;
 
-wire        load_tape = ioctl_index==1;
+wire        load_tape = ioctl_download && ioctl_index[4:0] == 1;
 reg  [15:0] tape_end;
 reg         tape_loaded = 1'b0;
 reg         ioctl_downlD;
@@ -514,7 +535,7 @@ wire [7:0]  tape_data;
 spram #(.address_width(16)) tapecache (
   .clock(clk_sys),
 
-  .address((ioctl_index == 1 && ioctl_download) ? ioctl_addr: tape_addr),
+  .address(load_tape ? ioctl_addr: tape_addr),
   .data(ioctl_dout),
   .wren(ioctl_wr && load_tape),
   .q(tape_data)
@@ -526,14 +547,14 @@ always @(posedge clk_sys) begin
 end
 
 always @(posedge clk_sys) begin
-	ioctl_downlD <= ioctl_index==1;
-	if(ioctl_downlD & ~ioctl_index==1) tape_loaded <= 1'b1;
+	ioctl_downlD <= load_tape;
+	if(~ioctl_downlD & load_tape) tape_loaded <= 1'b1;
 end
 
 cassette cassette (
   .clk(clk_sys),
   .reset(reset),
-  .rewind(tapeRewind | (load_tape && ioctl_download && ioctl_index==1)),
+  .rewind(tapeRewind | (load_tape)),
   .en(cas_relay && tape_loaded && ~tapeUseADC), 
   .tape_addr(tape_addr),
   .tape_data(tape_data),

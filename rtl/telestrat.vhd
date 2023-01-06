@@ -43,15 +43,18 @@ entity telestrat is
 
 	 rom_ad            : out std_logic_vector(15 downto 0);
 	 rom_q             : in  std_logic_vector( 7 downto 0);
-
+	 rom_mask          : in  std_logic_vector( 3 downto 0);
+	 
 	 phi2              : out std_logic;
 	 fd_led            : out std_logic;
 	 fdd_ready         : in std_logic;
 	 fdd_busy          : out std_logic;
 	 fdd_reset         : in std_logic;
 	 fdd_layout        : in std_logic;
-	 joystick_0        : in std_logic_vector( 7 downto 0);
-	 joystick_1        : in std_logic_vector( 7 downto 0);
+	 joystick_0        : in std_logic_vector( 4 downto 0);
+	 joystick_1        : in std_logic_vector( 4 downto 0);
+	 fire2_t1          : in std_logic;
+	 fire3_t1          : in std_logic;
 	 pll_locked        : in std_logic;
 	 disk_enable       : in std_logic;
 	 uart_txd          : out std_logic;
@@ -168,10 +171,10 @@ architecture RTL of telestrat is
 	signal ACIA_DO: STD_LOGIC_VECTOR(7 downto 0);
 	signal acia_irq: STD_LOGIC;
 	signal XTLI    : STD_LOGIC;
---	signal RXD    : STD_LOGIC;
---	signal TXD    : STD_LOGIC;
---	signal CTS    : STD_LOGIC;
---  	signal RTS    : STD_LOGIC;
+	signal RXD    : STD_LOGIC;
+	signal TXD    : STD_LOGIC;
+	signal CTS    : STD_LOGIC;
+  	signal RTS    : STD_LOGIC;
 	signal DTR    : STD_LOGIC;
 	
    -- Controller
@@ -463,7 +466,7 @@ inst_via2 : entity work.via6522
 		cb1_t           => open,
 
 		cb2_i           => '1',
-		cb2_o           => open,
+		cb2_o           => UART_TXD,
 		cb2_t           => open,
 
 		irq             => via2_irq
@@ -603,18 +606,18 @@ HCS10017 : entity work.HCS10017
 inst_ACIA : work.ACIA
    port map(
           RESET  => RESETn,
-			 PHI2   => ula_phi2,
+			 PHI2   => ENA_1MHZ,
 			 CS     => CS31Cn,
 			 RWN    => cpu_rw,
 			 RS     => cpu_ad(1 downto 0),
 			 DATAIN => cpu_do,
 			 DATAOUT=> ACIA_DO,
 			 XTLI   => CLK_ACIA,
-			 RTSB   => UART_RTS,
-			 CTSB   => UART_CTS,
+			 RTSB   => RTS, --UART_RTS,
+			 CTSB   => RTS, --UART_CTS,
 			 DTRB   => DTR, 
-			 RXD    => UART_RXD,
-			 TXD    => UART_TXD,
+			 RXD    => RXD , --UART_RXD,
+			 TXD    => RXD , --UART_TXD,
 			 IRQn   => acia_irq
 
 );
@@ -682,15 +685,13 @@ PRN_STROBE  <= via1_pb_out(4);
 PRN_DATA    <= via1_pa_out;
 
 
-joya <= joystick_0(3) & joystick_0(0) & joystick_0(1) & joystick_0(2) & joystick_0(4) ;
-joyb <= joystick_1(3) & joystick_1(0) & joystick_1(1) & joystick_1(2) & joystick_1(4) ;
 
-joy_mux <= not joya when via2_pb_out(7) = '1' else
-           not joyb when via2_pb_out(6) = '1' else
+joy_mux <= not joystick_0 when via2_pb_out(7) = '1' else
+           not joystick_1 when via2_pb_out(6) = '1' else
 			  "11111";
 			  
-via2_pb_in  <=  via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
-via2_pa_in  <= '1' & '1' & '1' & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
+via2_pb_in  <= not via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
+via2_pa_in  <= not fire3_t1 & UART_RXD & not fire2_t1 & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
 ROM_CSn <= CS6n and cS5n and CS4n and CS3n; 
 rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
@@ -702,7 +703,7 @@ cpu_di <= VIA1_DO          when cs300n = '0' else
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 
           ROM_Q            when ROM_CSn = '0' else
---			 RAM_BANK4_DO     when CS3n = '0' else
+			 RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
 			 RAM_BANK2_DO     when CS1n = '0' else
 			 RAM_BANK1_DO     when CS0n = '0' else

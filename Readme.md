@@ -1,48 +1,82 @@
-# Template core for MiSTer
+# [Oric Telestrat](https://fr.wikipedia.org/wiki/Oric_Telestrat) for MiSTer FPGA
 
-## General description
-This core contains the latest version of framework and will be updated when framework is updated. There will be no releases. This core is only for developers. Besides the framework, core demonstrates the basic usage. New or ported cores should use it as a template.
 
-It's highly recommended to follow the notes to keep it standardized for easier maintenance and collaboration with other developers.
+Oric Telestrat re-implementation on a modern FPGA.
 
-## Source structure
+### Background:
 
-### Legend:
-* `<core_name>` - you have to use the same name where you see this in this manual. Basically it's your core name.
+  This project started on 2020, based on the initial Oric core (from SEILEBOST) and have gained components and testing over this years. I hope youll 
+ enjoy this as i have enjoyed recreating it.
 
-### Standard MiSTer core should have following folders:
-* `sys` - the framework. Basically it's prohibited to change any files in this folder. Framework updates may erase any customization in this folder. All MiSTer cores have to include sys folder as is from this core.
-* `rtl` - the actual source of core. It's up to the developer how to organize the inner structure of this folder. Exception is pll folder/files (see below).
-* `releases` - the folder where rbf files should be placed. format of each rbf is: <core_name>_YYYYMMDD.rbf (YYYYMMDD is date code of release).
+### What is implemented ?
 
-### Other standard files:
-* `<core_name>.qpf`- quartus project file. Copy it as is and then modify the line `PROJECT_REVISION = "<core_name>"` according to your core name.
-* `<core_name>.qsf` - quartus settings file. In most cases you don't need to modify anything inside (although you may wont to adjust some settings in quartus - this is fine, but keep changes minimal). You also need to watch this file before you make a commit. Quartus in some conditions may "spit" all settings from different files into this file so it will become large. If you see this, then simply revert it to original file.
-* `<core_name>.srf` - optional file to disable some warnings which are safe to disable and make message list more clean, so you will have less chance to miss some improtant warnings. You are free to modify it.
-* `<core_name>.sdc` - optional file for constraints in case if core require some special constraints. You are free to modify it.
-* `<core_name>.sv` - glue logic between framework and core. This is where you adapt core specific signals to framework.
-* `files.qip` - list of all core files. You need to edit it manually to add/remove files. Quartus will use this file but can't edit it. If you add files in Quartus IDE, then they will be added to `<core_name>.qsf` which is recommended manually move them to `files.qip`.
-* `clean.bat` - windows batch file to clean the whole project from temporary files. In most cases you don't need to modify it.
-* `.gitignore` - list of files should be ignored by git, so temprorary files wont be included in commits.
-* `jtag.cdf` - it will be produced when you compile the core. By clicking it in Quartus IDE, you will launch programmer where you can send the core to MiSTer over USB blaster cable (see manual for DE10-nano how to connect it). This file normally is not presend on cleaned project and not includede in commits.
+* **ULA HCS10017**.
+* **ULA HCS3119**.
+* **ULA HCS3120**.
+* **VIA 6522** X2.
+* **CPU 6502**.
+* 128KB of **RAM**.
+* up to 64 K of rom (Via cartridges)
+* Sound (**AY-3-8912**).
+* Tape loading working (via audio cable on **ADC**  and OSD TAP file loading).
+* **WD1793** disk controller with two floppy drives.
+* Disc Read / Write operations fully supported with EDSK (The same as Amstrad CPC) format and IMG raw disks.
+* ACIA **6551** (implemented but not conected)
+* MIDI socket (implemented but not connected)
 
-### PLL:
-Framework implies use of at least one PLL in the core. Framework doesn't comtain this PLL but requires it to be placed in `rtl` folder, so `pll` folder and `pll.v`, `pll.qip` files must be present, however PLL settings are up to the core.
 
-### Verilog Macros
+### TODO
+ * Find information on **MIDI** and **MINITEL** hardware.
 
-The following macros can be defined and will affect the framework features:
 
-Macro          |   Effect
+
+
+### HOW TO INSTALL
+
+* **Create a directory called TeleStrat under /media/fat/games put inside:**
+     * ROM cartridges
+     * Disk images (not the MFM from the emulator, but raw images or edsk images)
+     * TAP files.
+     
+   * Once the core is launched:
+
+   Keyboard Shorcuts:
+   * F11 - Reset.
+   * F12 - OSD Main Menu.
+
+   * Select an Image from (try STRATSED.img) for booting.
+
+
+
+## Thanks to:
+
+   * Ron Rodritty:  [retrowiki.es](https://www.retrowiki.es)
+   * Chema Enguita.
+   * SiliceBit.
+   * The RW FPGA DEV Team.
+   * [Defence force forum](https://forum.defence-force.org)
+
+## About disk images
+
+  Despite the .dsk extension, Disk images must use the defacto standard **edsk** for disk preservation (also known as "AMSTRAD CPC EXTENDED FORMAT") or RAW disk images (if the disk is 17 sectors per track).
+  To convert images:
+  * From the Oric "dsk" to the needed "edsk" or "img" you need the [HxCFloppyEmulator](https://hxc2001.com/download/floppy_drive_emulator/HxCFloppyEmulator_soft.zip) tool.
+  * For .img, you can also use MFM2RAW from euphoric emulator
+ 
+
+  Load the Oric disk and export it as **CPC DSK file** or **IMG File (Raw sector file format) The resulting image should load flawlessly on the Oric. Always use a `.dsk` or `.img` extension for your output file
+  These images are also compatible with fastfloppy firmware on gothek, cuamana reborn, etc. working with real Orics.
+
+## ROM cartridges
+
+ ROM cartridges are a concatenation  of BANK7+BANK6+BANK5+BANK4 ROMS. 
+
+Cartridge      |   Description
 ---------------|---------------------------------
-ARCADE_SYS     | Disables the UART and OSD status
-DEBUG_NOHDMI   | Disable HDMI-related modules. Speeds up compilation but only analogue/direct video is available
-DUAL_SDRAM     | Changes configuration of FPGA pins to work with dual SDRAM I/O boards
-USE_DDRAM      | Enables DDRAM ports of emu instance
-USE_SDRAM      | Enables SDRAM ports of emu instance
-USE_FB         | Allows to use framebuffer from the core
-
-
-# Quartus version
-Cores must be developed in **Quartus v17.0.x**. It's recommended to have updates, so it will be **v17.0.2**. Newer versions won't give any benefits to FPGA used in MiSTer, however they will introduce incompatibilities in project settings and it will make harder to maintain the core and collaborate with others. **So please stick to good old 17.0.x version.** You may use either Lite or Standard license.
+ATMOS.ROM      | Oric ATMOS cartridge... use this to get maximum atmos compatibility (no disks)
+TELETEST-V2-1  | Telestrat service tests
+TELEASS        | Telestrat mode. TELMON,HYPERBASIC and TELEASS
+TELEFORTH      | Telestrat mode. TELMON ant TELEFORTH
+TELEMATIC      | Minitel server
+STRATORIC-X.X  | Mode ATMOS with disk modes. (STRATORIC+ATMOS ROM+ORIC1 ROM
 

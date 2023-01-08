@@ -66,16 +66,16 @@ BEGIN
 			SEL <= '1' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) /= "11" ELSE '0';
 			nIRQ <= '0' WHEN WD_IRQ = '1' AND IRQEN = '1' ELSE '1'; 
           
-         DS0 <= '1' when DSEL = "00" else '0'; --and CS1793n ='0' else '0';
-			DS1 <= '1' when DSEL = "01" else '0'; --and CS1793n ='0' else '0';
-			DS2 <= '1' when DSEL = "10" else '0'; --and CS1793n ='0' else '0';
-			DS3 <= '1' when DSEL = "11" else '0'; --and CS1793n ='0' else '0';
+         DS0 <= '1' when DSEL = "00" else '0';
+			DS1 <= '1' when DSEL = "01" else '0';
+			DS2 <= '1' when DSEL = "10" else '0';
+			DS3 <= '1' when DSEL = "11" else '0';
 			
 			-- Data Bus Control.
 			PROCESS (RnW, WD_DRQ, WD_IRQ, WD_REn, A,FDC_DAL_OUT )
 			BEGIN
 					IF A(3 DOWNTO 2) = "10" THEN
-					   DO <= (NOT WD_DRQ) & "-------";
+					   DO <= (not WD_DRQ) & "-------"; 
 					ELSIF A(3 DOWNTO 2) = "01" THEN
 						DO <= (NOT WD_IRQ) & "-------";
 					ELSIF WD_REn = '0' THEN

@@ -4,7 +4,7 @@
 //
 //  Tape loader by JAson-A and Flandango.
 //============================================================================
-
+`default_nettype none
 
 module emu
 (
@@ -147,7 +147,7 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0; 
  
-assign LED_USER  = ioctl_download | led_disk | tape_adc_act;
+assign LED_USER  = ioctl_download | fdd1_led | fdd2_led| tape_adc_act;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0; 
@@ -174,11 +174,11 @@ video_freak video_freak
 localparam CONF_STR = {
 	"TeleStrat;UART9600;",
 	"S0,DSKIMG,Mount Drive A:;",
-   "F1,TAP,Load TAP file;",
+	"S1,DSKIMG,Mount Drive B:;",
 	"F2,ROM,Load Cartridge;",
 	"-;",
 	"O7,Drive Write,Allow,Prohibit;",
-	"-;",
+   "F1,TAP,Load TAP file;",
 	"O[51:50],Tape Audio,Mute,Low,High;",
 	"O[52],Tape Input,File,ADC;",
 	"h0T[53],Rewind;",
@@ -186,7 +186,6 @@ localparam CONF_STR = {
 	"ODE,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"OAC,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"OFG,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
-	"-;",
 	"O89,Stereo,Off,ABC (West Europe),ACB (East Europe);",
 	"-;",
 	"R0,Reset & Apply;",
@@ -249,7 +248,7 @@ wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din[2];
 wire        sd_buff_wr;
-wire  [1:0] img_mounted;
+wire  [3:0] img_mounted;
 wire [31:0] img_size;
 wire        img_readonly;
 
@@ -303,19 +302,8 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 wire[15:0] rom_address;
 wire[7:0]  rom_data;
 reg [1:0]  rom_pages;
-reg [3:0]  rom_mask;
 
 wire cart_download = ioctl_index==2 && ioctl_download;
-
-always @(posedge clk_sys) begin
-    if(ioctl_wr && ioctl_index==2) rom_pages <= ioctl_addr[15:14];
-	 case (rom_pages)
-	   2'b00: rom_mask <= 4'b1000; // initial state
-	   2'b01: rom_mask <= 4'b1100;
-	   2'b10: rom_mask <= 4'b1000;
-	   2'b11: rom_mask <= 4'b1111;
-    endcase
-end
 
 cart  cart
 (
@@ -359,6 +347,8 @@ wire  [7:0] ram_q;
 always @(posedge clk_sys) ram_q <= ram[ram_ad];
 
 wire        led_disk;
+wire [23:0]  cpu_ad;
+wire [7:0]   cpu_do;
 
 telestrat telestrat
 (
@@ -396,42 +386,37 @@ telestrat telestrat
 	
 	.rom_ad           (rom_address),
 	.rom_q            (rom_data),
-	.rom_mask         (rom_mask),
+	
 	
 	
 	.joystick_0       (joy_t0),
 	.joystick_1       (joy_t1),
 	.fire2_t1         (fire2_t1),
 	.fire3_t1         (fire3_t1),
-	.fd_led           (led_disk),
-	.fdd_ready        (fdd_ready),
-	.fdd_busy         (),
-	.fdd_reset        (0),
-	.fdd_layout       (0),
-	.phi2             (),
+	
+	.cpu_ad           (cpu_ad),
+	.cpu_do           (cpu_do),
+   .WD_REn           (WD_REn),
+	.WD_WEn           (WD_WEn), 
+   .WD_DRQ           (fdd_drq),
+	.WD_IRQ           (fdd_irq),
+	.WD_CLK           (WD_CLK),
+	.WD_RESET         (WD_RESET),
+	.FDC_DAL_OUT      (fdc_dal_out),
+	.CS1793n          (CS1793n),
+	.SSEL             (SSEL),
+	.DS0              (DS0),
+	.DS1              (DS1),
+	.DS2              (DS2),
+	.DS3              (DS3),
+	
 	.pll_locked       (locked),
-	.disk_enable      (1),
-	//
 	.UART_TXD         (UART_TXD),
 	.UART_RXD         (UART_RXD),
 	.UART_CTS         (UART_CTS),
-	.UART_RTS         (UART_RTS),
-	//
-	.img_mounted      (img_mounted[0]), // signaling that new image has been mounted
-	.img_size         (img_size[31:0]), // size of image in bytes
-	.img_wp           (status[7] | img_readonly), // write protect
-   .sd_lba           (sd_lba[0]),
-	.sd_rd            (sd_rd[0]),
-	.sd_wr            (sd_wr[0]),
-	.sd_ack           (sd_ack[0]),
-	.sd_buff_addr     (sd_buff_addr),
-	.sd_buff_dout     (sd_buff_dout),
-	.sd_buff_din      (sd_buff_din[0]),
-	.sd_buff_wr       (sd_buff_wr)
+	.UART_RTS         (UART_RTS)
+	
 );
-
-reg  fdd_ready = 0;
-always @(posedge clk_sys) if(img_mounted[0]) fdd_ready <= |img_size;
 
 
 /////////////////// VIDEO PROCESSING ////////////////////////////////
@@ -574,5 +559,124 @@ ltc2308_tape ltc2308_tape
 
 assign tape_in = tapeUseADC ? tape_adc : casdout;
 
+/////////////////////// FLOPPY DISK ///////////////////////////
+
+wire       wp =status[7] | img_readonly;
+wire       CS1793n;
+wire       DS0,DS1,DS2,DS3;
+reg [7:0]  fdc_dal_out; 
+wire       SSEL;
+wire       WD_REn,WD_WEn;
+wire       WD_CLK;
+wire       WD_RESET;
+reg        fdd_irq;
+reg        fdd_drq;
+
+
+//assign fdc_dal_out = fdc_dal_1_out;
+//assign fdd_irq = fdd1_irq;
+//assign fdd_drq = fdd1_drq;
+
+
+always @(posedge WD_CLK) begin
+   case({DS3,DS2,DS1,DS0})
+	 4'b0001: {fdc_dal_out,fdd_irq,fdd_drq} <= {fdc_dal_1_out,fdd1_irq,fdd1_drq};
+	 4'b0010: {fdc_dal_out,fdd_irq,fdd_drq} <= {fdc_dal_2_out,fdd2_irq,fdd2_drq};
+	 default: {fdc_dal_out,fdd_irq,fdd_drq} <= {8'hff,1'b0,1'b1};
+	endcase
+end
+
+wire [7:0] fdc_dal_1_out;
+wire       fdd1_prepare;
+wire       fdd1_irq;
+wire       fdd1_drq;
+wire       fdd1_led;
+
+reg  fdd1_ready = 0;
+always @(posedge clk_sys) if(img_mounted[0]) fdd1_ready <= |img_size;
+
+wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0001)) fdd1
+(
+	.clk_sys(clk_sys),
+	.ce     (WD_CLK),
+	.reset  (WD_RESET),
+	.io_en  (~CS1793n),
+	.rd     (~WD_REn),
+	.wr     (~WD_WEn),
+	.addr   (cpu_ad[1:0]),
+	.din    (cpu_do),
+	.dout   (fdc_dal_1_out),
+	.intrq  (fdd1_irq),
+	.drq    (fdd1_drq),
+
+	.img_mounted (img_mounted[0]),
+	.img_size    (img_size[20:0]),
+	.sd_lba      (sd_lba[0]),
+	.sd_rd       (sd_rd[0]),
+	.sd_wr       (sd_wr[0]),
+	.sd_ack      (sd_ack[0]),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din (sd_buff_din[0]),
+	.sd_buff_wr (sd_buff_wr),
+
+	.wp        (wp),
+	.size_code (3'b101),
+	.layout    (0),
+	.side      (SSEL),
+	.ready     (fdd1_ready  && ~fdd1_prepare),
+	.prepare   (fdd1_prepare),
+	.busy      (fdd1_led),
+	.fdd_sel   ({DS3,DS2,DS1,DS0})
+);
+
+
+
+
+
+wire [7:0] fdc_dal_2_out;
+wire       fdd2_prepare;
+wire       fdd2_irq;
+wire       fdd2_drq;
+wire       fdd2_led;
+
+
+reg  fdd2_ready = 0;
+always @(posedge clk_sys) if(img_mounted[1]) fdd2_ready <= |img_size;
+
+wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0010)) fdd2
+(
+	.clk_sys(clk_sys),
+	.ce     (WD_CLK),
+	.reset  (WD_RESET),
+	.io_en  (~CS1793n),
+	.rd     (~WD_REn),
+	.wr     (~WD_WEn),
+	.addr   (cpu_ad[1:0]),
+	.din    (cpu_do),
+	.dout   (fdc_dal_2_out),
+	.intrq  (fdd2_irq),
+	.drq    (fdd2_drq),
+
+	.img_mounted (img_mounted[1]),
+	.img_size    (img_size[20:0]),
+	.sd_lba      (sd_lba[1]),
+	.sd_rd       (sd_rd[1]),
+	.sd_wr       (sd_wr[1]),
+	.sd_ack      (sd_ack[1]),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din (sd_buff_din[1]),
+	.sd_buff_wr  (sd_buff_wr),
+	.wp          (wp),
+
+	.size_code (3'b101),
+	.layout    (0),
+	.side      (SSEL),
+	.ready     (fdd2_ready  && ~fdd2_prepare),
+	.prepare   (fdd2_prepare),
+	.busy      (fdd2_led),
+	.fdd_sel   ({DS3,DS2,DS1,DS0})
+);
 
 endmodule

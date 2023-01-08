@@ -43,14 +43,26 @@ entity telestrat is
 
 	 rom_ad            : out std_logic_vector(15 downto 0);
 	 rom_q             : in  std_logic_vector( 7 downto 0);
-	 rom_mask          : in  std_logic_vector( 3 downto 0);
+	 
+	 cpu_ad            : buffer std_logic_vector(23 downto 0);
+	 cpu_do            : buffer std_logic_vector( 7 downto 0);
+	 
+	 WD_REn            : buffer std_logic;
+	 WD_WEn            : buffer std_logic; 
+    WD_DRQ            : in std_logic;
+	 WD_IRQ            : in std_logic;
+	 WD_CLK            : buffer std_logic;
+	 FDC_DAL_OUT       : in std_logic_vector( 7 downto 0);
+	 CS1793n           : buffer std_logic;
+	 SSEL              : out std_logic;
+	 DS0               : out std_logic;
+	 DS1               : out std_logic;
+	 DS2               : out std_logic;
+	 DS3               : out std_logic;
+	 WD_RESET          : out std_logic;
 	 
 	 phi2              : out std_logic;
-	 fd_led            : out std_logic;
 	 fdd_ready         : in std_logic;
-	 fdd_busy          : out std_logic;
-	 fdd_reset         : in std_logic;
-	 fdd_layout        : in std_logic;
 	 joystick_0        : in std_logic_vector( 4 downto 0);
 	 joystick_1        : in std_logic_vector( 4 downto 0);
 	 fire2_t1          : in std_logic;
@@ -60,18 +72,7 @@ entity telestrat is
 	 uart_txd          : out std_logic;
 	 uart_rxd          : in std_logic;
 	 uart_rts          : out std_logic;
-	 uart_cts          : in std_logic;
-	 img_mounted:     in std_logic;
-	 img_wp:          in std_logic;
-	 img_size:        in std_logic_vector (31 downto 0);
-	 sd_lba:          out std_logic_vector (31 downto 0);
-	 sd_rd:           out std_logic;
-	 sd_wr:           out std_logic;
-	 sd_ack:          in std_logic;
-	 sd_buff_addr:    in std_logic_vector (8 downto 0);
-	 sd_buff_dout:    in std_logic_vector (7 downto 0);
-	 sd_buff_din:     out std_logic_vector(7 downto 0);
-	 sd_buff_wr:      in std_logic
+	 uart_cts          : in std_logic
 	 );
 end;
 
@@ -84,10 +85,10 @@ architecture RTL of telestrat is
     signal clk_cnt            : std_logic_vector(2 downto 0) := "000";
 
     -- cpu
-    signal cpu_ad             : std_logic_vector(23 downto 0);
+    --signal cpu_ad             : std_logic_vector(23 downto 0);
     signal cpu_di             : std_logic_vector(7 downto 0);
 	 signal cpu_di_last        : std_logic_vector(7 downto 0);
-    signal cpu_do             : std_logic_vector(7 downto 0);
+    --signal cpu_do             : std_logic_vector(7 downto 0);
     signal cpu_rw             : std_logic;
     signal via1_irq           : std_logic;
 	 signal via2_irq           : std_logic;
@@ -129,32 +130,8 @@ architecture RTL of telestrat is
 	SIGNAL via2_pb_out_oe : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL VIA2_DO : STD_LOGIC_VECTOR(7 DOWNTO 0);
 	SIGNAL VIA2_DO_OE : STD_LOGIC;
-	-- WDC
-	SIGNAL WD_CLK : STD_LOGIC;
-	SIGNAL WD_CSn : STD_LOGIC;
-	SIGNAL WD_REn : STD_LOGIC;
-	SIGNAL WD_WEn : STD_LOGIC;
-	SIGNAL WD_IRQ : STD_LOGIC;
-	SIGNAL WD_DRQ : STD_LOGIC;
-	SIGNAL SSEL   : STD_LOGIC;	
-	-- FDC
-	SIGNAL FDC_DAL_0_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_1_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_2_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_3_IN : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_0_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_1_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_2_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDC_DAL_3_OUT : STD_LOGIC_VECTOR(7 DOWNTO 0);
-	SIGNAL FDD_PREPARE :STD_LOGIC;
-	SIGNAL DS0    : STD_LOGIC;
-	SIGNAL DS1    : STD_LOGIC;
-	SIGNAL DS2    : STD_LOGIC;
-	SIGNAL DS3    : STD_LOGIC;
- 
 	-- CS 
 	SIGNAL CS300n : STD_LOGIC;
---	SIGNAL CS310n : STD_LOGIC;
 	SIGNAL CS314n : STD_LOGIC;
 	SIGNAL CS31Cn : STD_LOGIC;
 	SIGNAL CS320n : STD_LOGIC;
@@ -165,7 +142,7 @@ architecture RTL of telestrat is
 	SIGNAL CS4n   : STD_LOGIC;
 	SIGNAL CS5n   : STD_LOGIC;
 	SIGNAL CS6n   : STD_LOGIC;
-	SIGNAL CS1793n: STD_LOGIC;
+--	SIGNAL CS1793n: STD_LOGIC;
 	SIGNAL ROM_CSn: STD_LOGIC;
 	-- ACIA
 	signal ACIA_DO: STD_LOGIC_VECTOR(7 downto 0);
@@ -180,8 +157,7 @@ architecture RTL of telestrat is
    -- Controller
 	 signal cont_D_OUT         : std_logic_vector(7 downto 0);
 	 signal cont_irq           : std_logic;
-	 --signal cont_MAPn          : std_logic;
-	 --signal IOCONTn            : std_logic :='1';
+
     -- Keyboard PS2
     signal KEY_HIT            : std_logic;
     signal KEYB_RESETn        : std_logic;
@@ -193,6 +169,7 @@ architecture RTL of telestrat is
     signal psg_do             : std_logic_vector (7 downto 0);
     signal psg_bidir          : std_logic;
 	 signal ym_o_ioa           : std_logic_vector (7 downto 0);
+
     -- ULA 1
     signal ula_phi2           : std_logic;
     signal ula_CSIOn          : std_logic;
@@ -206,18 +183,15 @@ architecture RTL of telestrat is
 	 signal ula_MAPn           : std_logic;
     signal ula_CLK_4          : std_logic;
     signal ula_CLK_4_en       : std_logic;
- 
-	 
-
---	 signal lSRAM_D            : std_logic_vector(7 downto 0);
-	 signal ENA_1MHZ           : std_logic;
+ 	 signal ENA_1MHZ           : std_logic;
 	 signal ENA_1MHZ_N         : std_logic;
+
 	 -- RAM
 	 signal RAM_BANK0_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK1_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK2_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK3_DO       :std_logic_vector(7 downto 0);
-	 signal RAM_BANK4_DO       :std_logic_vector(7 downto 0);
+	 --signal RAM_BANK4_DO       :std_logic_vector(7 downto 0);
 	 --- Printer port
 	 signal PRN_STROBE			: std_logic;
 	 signal PRN_DATA           : std_logic_vector(7 downto 0);
@@ -227,9 +201,6 @@ architecture RTL of telestrat is
 	 
 	 signal swnmi           	: std_logic;
 	 signal swrst              : std_logic;
-	 
-	 signal joya               : std_logic_vector(4 downto 0);
-	 signal joyb               : std_logic_vector(4 downto 0);
 	 signal joy_mux            : std_logic_vector(4 downto 0);
 	 
 	 
@@ -273,56 +244,6 @@ PORT (
 );
 END COMPONENT;
 
-COMPONENT wd17xx
-	GENERIC 
-	(
-		MODEL           : INTEGER := 3;
-		EDSK            : INTEGER := 1;
-		CLK_EN          : INTEGER :=24000
-	);
-	PORT 
-	(
-		clk_sys       : IN std_logic;
-		ce            : IN std_logic;
-
-		reset         : IN std_logic;
-		io_en         : IN std_logic;
-		rd            : IN std_logic;
-		wr            : IN std_logic;
-		addr          : IN std_logic_vector (1 DOWNTO 0);
-		din           : IN std_logic_vector (7 DOWNTO 0);
-		dout          : OUT std_logic_vector(7 DOWNTO 0);
-
-		intrq         : OUT std_logic;
-		drq           : OUT std_logic;
-
-		busy          : OUT std_logic;
-		ready         : IN std_logic;
-		layout        : IN std_logic;
-		side          : IN std_logic;
-
-		img_mounted   : IN std_logic;
-    	img_size      : IN std_logic_vector (31 DOWNTO 0);
-
-		fdd_sel       : IN std_logic_vector(3 downto 0);
-		wp            : IN std_logic;
-
-		sd_lba        : OUT std_logic_vector (31 DOWNTO 0);
-		sd_rd         : OUT std_logic;
-		sd_wr         : OUT std_logic;
-		sd_ack        : IN std_logic;
-		sd_buff_addr  : IN std_logic_vector (8 DOWNTO 0);
-		sd_buff_dout  : IN std_logic_vector (7 DOWNTO 0);
-		sd_buff_din   : OUT std_logic_vector (7 DOWNTO 0);
-		sd_buff_wr    : IN std_logic;
-
-		prepare       : OUT std_logic;
-		size_code     : IN std_logic_vector (2 DOWNTO 0)
-
-	);
-END COMPONENT;
-
-
 
 begin
 
@@ -356,7 +277,7 @@ ram_oe  <= '0' when RESETn = '0' else ula_OE_SRAM;
 ram_we  <= '0' when RESETn = '0' else ula_WE_SRAM;
 phi2    <= ula_PHI2;
 
-
+WD_RESET <= not RESETn;
 
 inst_ram1 : entity work.ram16k
 	port map (
@@ -382,14 +303,14 @@ inst_ram3 : entity work.ram16k
 		wren        => not CS2n and not cpu_rw, 
 		q 			   => RAM_BANK3_DO
 );
-inst_ram4 : entity work.ram16k
-	port map (
-		clock			=> CLK_IN,
-		address		=> cpu_ad(13 downto 0),
-		data        => cpu_do,
-		wren        => not CS3n and not cpu_rw, 
-		q 			   => RAM_BANK4_DO
-);
+--inst_ram4 : entity work.ram16k
+--	port map (
+--		clock			=> CLK_IN,
+--		address		=> cpu_ad(13 downto 0),
+--		data        => cpu_do,
+--		wren        => not CS3n and not cpu_rw, 
+--		q 			   => RAM_BANK4_DO
+--);
 
 via1_pa_out_oe_l <= not via1_pa_out_oe;
 via1_irq_n <= not via1_irq;
@@ -550,7 +471,7 @@ HCS3120: work.HCS3120
 			 WD_CLK    => WD_CLK,
 																				-- Oric Expansion Port Signals
           DI        => cpu_do,                              -- 6502 Data Bus
-			 FDC_DAL_OUT => FDC_DAL_0_OUT,
+			 FDC_DAL_OUT => FDC_DAL_OUT,
           DO        => CONT_D_OUT,                          -- 6502 Data Bus
           A         => cpu_ad(15 downto 0),                 -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
@@ -623,54 +544,6 @@ inst_ACIA : work.ACIA
 );
 
 
-
-fdc0 : wd17xx
-	GENERIC MAP
-	(
-	EDSK  => 1, 
-	MODEL => 3,
-	CLK_EN=> 24000
-	)
-	PORT MAP
-	(
-		clk_sys       => CLK_IN, 
-		ce            => WD_CLK, 
-
-		reset         => not RESETn, 
-		io_en         => not CS1793n, 
-		rd            => not WD_REn,
-		wr            => not WD_WEn,
-		addr          => cpu_ad (1 DOWNTO 0), 
-		din           => CPU_DO, 
-		dout          => FDC_DAL_0_OUT, 
-
-		intrq         => WD_IRQ, 
-		drq           => WD_DRQ, 
-
-		ready         => fdd_ready and not fdd_prepare, 
-		busy          => fd_led, 
-
-		layout        => '0' , --fdd_layout, 
-		size_code     => "101", 
-		side          => SSEL,
-		fdd_sel       => DS3 & DS2 & DS1 & DS0, 
-		prepare       => fdd_prepare,
-		img_mounted   => img_mounted, 
-		wp            => img_wp, 
-		img_size      => img_size (31 downto 0), 
-		sd_lba        => sd_lba, 
-		sd_rd         => sd_rd, 
-		sd_wr         => sd_wr, 
-		sd_ack        => sd_ack, 
-		sd_buff_addr  => sd_buff_addr, 
-		sd_buff_dout  => sd_buff_dout, 
-		sd_buff_din   => sd_buff_din,
-		sd_buff_wr    => sd_buff_wr
-); 
- 
-
-
-
 via1_pa_in <= (via1_pa_out and not via1_pa_out_oe_l) or (psg_do and via1_pa_out_oe_l);
 via1_pb_in(2 downto 0) <= via1_pb_out(2 downto 0);
 via1_pb_in(3) <= KEY_HIT;
@@ -699,11 +572,11 @@ rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
 
 cpu_di <= VIA1_DO          when cs300n = '0' else 
           CONT_D_OUT       when cs314n = '0' else           
-          FDC_DAL_0_OUT    when CS1793n = '0' else 
+          FDC_DAL_OUT      when CS1793n = '0' else 
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 
           ROM_Q            when ROM_CSn = '0' else
-			 RAM_BANK4_DO     when CS3n = '0' else
+			 --RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
 			 RAM_BANK2_DO     when CS1n = '0' else
 			 RAM_BANK1_DO     when CS0n = '0' else

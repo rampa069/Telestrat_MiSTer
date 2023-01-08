@@ -80,7 +80,7 @@ parameter CLK_EN          = 16'd32000; // in kHz
 parameter F_NUM           = 4'b0001;   // A:0001, B:0010, C:0100, D:1000
 
 reg[7:0] cmd;
-wire [15:0] step_rate_clk = 
+wire [32:0] step_rate_clk = 
            (cmd[1:0]==2'b00)               ? (16'd6 *CLK_EN-1'd1):   //  6ms
            (cmd[1:0]==2'b01)               ? (16'd12*CLK_EN-1'd1):   // 12ms
            (MODEL == 2 && cmd[1:0]==2'b10) ? (16'd2 *CLK_EN-1'd1):   //  2ms
@@ -274,7 +274,7 @@ wire [7:0] wdreg_stat_tmp ={ (MODEL == 1 || MODEL == 3) ? s_ready : s_motor,
 									s_busy};
 
 								
-wire [7:0] wdreg_status = (fdd_sel== F_NUM && ready)? wdreg_stat_tmp :(MODEL == 1 || MODEL == 3)? 8'd128: 8'b0;									
+wire [7:0] wdreg_status = wdreg_stat_tmp; //(fdd_sel== F_NUM && ready)? wdreg_stat_tmp :(MODEL == 1 || MODEL == 3)? 8'd128: 8'b0;									
 									
 
 

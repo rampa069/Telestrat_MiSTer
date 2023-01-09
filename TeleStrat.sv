@@ -176,8 +176,8 @@ localparam CONF_STR = {
 	"S0,DSKIMG,Mount Drive A:;",
 	"S1,DSKIMG,Mount Drive B:;",
 	"F2,ROM,Load Cartridge;",
+	"O1,BANK4,ROM,RAM;",
 	"-;",
-	"O7,Drive Write,Allow,Prohibit;",
    "F1,TAP,Load TAP file;",
 	"O[51:50],Tape Audio,Mute,Low,High;",
 	"O[52],Tape Input,File,ADC;",
@@ -386,6 +386,7 @@ telestrat telestrat
 	
 	.rom_ad           (rom_address),
 	.rom_q            (rom_data),
+	.bank4            (status[1]),
 	
 	
 	
@@ -561,7 +562,7 @@ assign tape_in = tapeUseADC ? tape_adc : casdout;
 
 /////////////////////// FLOPPY DISK ///////////////////////////
 
-wire       wp =status[7] | img_readonly;
+wire       wp = img_readonly;
 wire       CS1793n;
 wire       DS0,DS1,DS2,DS3;
 reg [7:0]  fdc_dal_out; 
@@ -624,7 +625,7 @@ wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0001)) fdd1
 	.size_code (3'b101),
 	.layout    (0),
 	.side      (SSEL),
-	.ready     (fdd1_ready  && ~fdd1_prepare),
+	.ready     (1), //(fdd1_ready  && ~fdd1_prepare),
 	.prepare   (fdd1_prepare),
 	.busy      (fdd1_led),
 	.fdd_sel   ({DS3,DS2,DS1,DS0})
@@ -673,7 +674,7 @@ wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0010)) fdd2
 	.size_code (3'b101),
 	.layout    (0),
 	.side      (SSEL),
-	.ready     (fdd2_ready  && ~fdd2_prepare),
+	.ready     (1), //(fdd2_ready  && ~fdd2_prepare),
 	.prepare   (fdd2_prepare),
 	.busy      (fdd2_led),
 	.fdd_sel   ({DS3,DS2,DS1,DS0})

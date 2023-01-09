@@ -43,6 +43,7 @@ entity telestrat is
 
 	 rom_ad            : out std_logic_vector(15 downto 0);
 	 rom_q             : in  std_logic_vector( 7 downto 0);
+	 bank4             : in std_logic;
 	 
 	 cpu_ad            : buffer std_logic_vector(23 downto 0);
 	 cpu_do            : buffer std_logic_vector( 7 downto 0);
@@ -191,7 +192,7 @@ architecture RTL of telestrat is
 	 signal RAM_BANK1_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK2_DO       :std_logic_vector(7 downto 0);
 	 signal RAM_BANK3_DO       :std_logic_vector(7 downto 0);
-	 --signal RAM_BANK4_DO       :std_logic_vector(7 downto 0);
+	 signal RAM_BANK4_DO       :std_logic_vector(7 downto 0);
 	 --- Printer port
 	 signal PRN_STROBE			: std_logic;
 	 signal PRN_DATA           : std_logic_vector(7 downto 0);
@@ -303,14 +304,15 @@ inst_ram3 : entity work.ram16k
 		wren        => not CS2n and not cpu_rw, 
 		q 			   => RAM_BANK3_DO
 );
---inst_ram4 : entity work.ram16k
---	port map (
---		clock			=> CLK_IN,
---		address		=> cpu_ad(13 downto 0),
---		data        => cpu_do,
---		wren        => not CS3n and not cpu_rw, 
---		q 			   => RAM_BANK4_DO
---);
+
+inst_ram4 : entity work.ram16k
+	port map (
+		clock			=> CLK_IN,
+		address		=> cpu_ad(13 downto 0),
+		data        => cpu_do,
+		wren        => not CS3n and not cpu_rw, 
+		q 			   => RAM_BANK4_DO
+);
 
 via1_pa_out_oe_l <= not via1_pa_out_oe;
 via1_irq_n <= not via1_irq;
@@ -566,7 +568,7 @@ joy_mux <= not joystick_0 when via2_pb_out(7) = '1' else
 via2_pb_in  <= not via2_pb_out(7) & via2_pb_out(6) & via2_pb_out(5) & joy_mux;
 via2_pa_in  <= not fire3_t1 & UART_RXD & not fire2_t1 & via2_pa_out(4) & '1' & via2_pa_out(2 downto 0);
 
-ROM_CSn <= CS6n and cS5n and CS4n and CS3n; 
+ROM_CSn <= CS6n and cS5n and CS4n and (CS3n or BANK4); 
 rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
   
 
@@ -576,7 +578,7 @@ cpu_di <= VIA1_DO          when cs300n = '0' else
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 
           ROM_Q            when ROM_CSn = '0' else
-			 --RAM_BANK4_DO     when CS3n = '0' else
+			 RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
 			 RAM_BANK2_DO     when CS1n = '0' else
 			 RAM_BANK1_DO     when CS0n = '0' else

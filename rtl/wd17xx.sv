@@ -50,6 +50,8 @@ module wd17xx
    output       disk_change_n,
    input        disk_change_reset_n,
 	input        inuse_n,
+	output       hlt,
+   output       hld,
 
 	
 	input [TOT_DISKS-1:0] img_mounted, // signaling that new image has been mounted
@@ -79,6 +81,8 @@ parameter EDSK            = 0;         // Supports Amstrad EDSK preservation for
 parameter CLK_EN          = 16'd32000; // in kHz
 parameter TOT_DISKS       = 2;         // floppy drives under the controller
 
+wire invalid_drive= fdd_sel > (TOT_DISKS-1);
+
 reg[7:0] cmd;
 wire [32:0] step_rate_clk = 
            (cmd[1:0]==2'b00)               ? (16'd6 *CLK_EN-1'd1):   //  6ms
@@ -97,7 +101,7 @@ assign drq       = s_drq;
 assign busy      = s_busy;
 assign intrq     = s_intrq;
 assign prepare   = EDSK ? scan_active  : img_mounted[fdd_sel];
-
+assign s_headloaded = hld && hlt;
 always @(posedge clk_sys) begin
      sd_lba[fdd_sel] <= scan_active ? scan_addr[20:9] : buff_a[20:9] + sd_block;
 end
@@ -282,7 +286,8 @@ wire [7:0] wdreg_stat_tmp ={ (MODEL == 1 || MODEL == 3) ? s_ready : s_motor,
 									s_busy};
 
 								
-wire [7:0] wdreg_status = wdreg_stat_tmp; 
+wire [7:0] wdreg_status = invalid_drive? 8'hff : wdreg_stat_tmp; 
+
 reg   [7:0] read_addr[6];
 reg   [7:0] q;
 reg         buff_rd;
@@ -334,6 +339,11 @@ wire        rde = rd & io_en;
 wire        wre = wr & io_en;
 
 always @(posedge clk_sys) begin
+  reg old_hld;
+    old_hld <= hld;
+	 
+    if(old_hld && ~hld) hlt <= 0;
+    if(hld && s_motor)  hlt <= 1;
     if (img_mounted[fdd_sel])          disk_change_n <= 0;
     if (~disk_change_reset_n) disk_change_n <= 1;
 end
@@ -369,18 +379,17 @@ always @(posedge clk_sys) begin
 				scan_state <= 0;
 				scan_wr    <= 0;
 				sd_block   <= 0;
-				disk_track <= 0;
-				wdreg_track<= 0;
+
 			end
 			disk_size <= img_size[20:0];
 			layout_r  <= layout;
-			s_headloaded <= 1;
-			wdreg_sector <=1;
-			ra_sector <= 1;
-			s_wpe <= 1;
- 		   {s_headloaded, RNF, s_crcerr, s_intrq} <= 0;
- 		   {s_wrfault, s_lostdata} <= 0;
-		   s_drq_busy <= 0;
+			//hld <= 0;
+			//wdreg_sector <=1;
+			//ra_sector <= 1;
+			//s_wpe <= 1;
+ 		   //{RNF, s_crcerr, s_intrq} <= 0;
+ 		   //{s_wrfault, s_lostdata} <= 0;
+		   //s_drq_busy <= 0;
 
 		end
 
@@ -399,7 +408,8 @@ always @(posedge clk_sys) begin
 		buff_wr <= 0;
 		state <= STATE_IDLE;
 		s_wpe <= 1;
-		{s_headloaded, RNF, s_crcerr, s_intrq} <= 0;
+		hld   <= 0;
+		{RNF, s_crcerr, s_intrq} <= 0;
 		{s_wrfault, s_lostdata} <= 0;
 		s_drq_busy <= 0;
 		watchdog_set <= 0;
@@ -702,7 +712,7 @@ always @(posedge clk_sys) begin
 							'h0: 	// RESTORE
 								begin
 									// head load as specified, index, track0
-									s_headloaded <= din[3];
+									hld <= din[3];
 									wdreg_track <= 0;
 									wdreg_sector <=1;
 									ra_sector <= 1;
@@ -717,7 +727,7 @@ always @(posedge clk_sys) begin
 								begin
 									// set real track to datareg
 									disk_track <= wdreg_data;
-									s_headloaded <= din[3];
+									hld <= din[3];
 									wdreg_track <= wdreg_data;
 									// get busy
 									s_drq_busy <= 2'b01;
@@ -739,7 +749,7 @@ always @(posedge clk_sys) begin
 									// update TRACK register too if asked to
 									if (din[4]) wdreg_track <= next_track;
 
-									s_headloaded <= din[3];
+									hld <= din[3];
 
 									// some programs like it when FDC gets busy for a while
 									s_drq_busy <= 2'b01;

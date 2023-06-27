@@ -52,6 +52,7 @@ entity telestrat is
 	 WD_WEn            : buffer std_logic; 
     WD_DRQ            : in std_logic;
 	 WD_IRQ            : in std_logic;
+	 WD_HLD            : in std_logic;
 	 WD_CLK            : buffer std_logic;
 	 FDC_DAL_OUT       : in std_logic_vector( 7 downto 0);
 	 CS1793n           : buffer std_logic;
@@ -495,6 +496,7 @@ HCS3120: work.HCS3120
 			 DS3         =>  DS3,
 			 WD_IRQ      =>  WD_IRQ,
 			 WD_DRQ      =>  WD_DRQ,
+			 WD_HLD      =>  WD_HLD,
 			 WD_REn      =>  WD_REn
          );
 			

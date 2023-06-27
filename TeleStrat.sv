@@ -405,6 +405,7 @@ telestrat telestrat
 	.WD_WEn           (WD_WEn), 
    .WD_DRQ           (fdd_drq),
 	.WD_IRQ           (fdd_irq),
+	.WD_HLD           (fdd_hld),
 	.WD_CLK           (WD_CLK),
 	.WD_RESET         (WD_RESET),
 	.FDC_DAL_OUT      (fdc_dal_out),
@@ -589,6 +590,7 @@ wire       fdd_prepare;
 wire       fdd_irq;
 wire       fdd_drq;
 wire       fdd_led;
+wire       fdd_hld;
 
 reg  [TOT_DISKS-1:0] fdd_ready;
 
@@ -604,7 +606,7 @@ wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.TOT_DISKS(TOT_DISKS)) fdd1
 (
 	.clk_sys(clk_sys),
 	.ce     (WD_CLK),
-	.reset  (WD_RESET),
+	.reset  (reset),
 	.io_en  (~CS1793n),
 	.rd     (~WD_REn),
 	.wr     (~WD_WEn),
@@ -632,6 +634,7 @@ wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.TOT_DISKS(TOT_DISKS)) fdd1
 	.ready     (fdd_ready),
 	.prepare   (fdd_prepare),
 	.busy      (fdd_led),
+	.hld       (fdd_hld),
 	.fdd_sel   (fdc_sel)
 );
 

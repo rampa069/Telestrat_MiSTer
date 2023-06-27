@@ -49,28 +49,25 @@ ENTITY HCS3120 IS
 
 		
 		WD_REn          : IN STD_LOGIC;
-		WD_IRQ          : IN  std_logic;
-		WD_DRQ          : IN  std_logic
+		WD_IRQ          : IN std_logic;
+		WD_DRQ          : IN std_logic;
+		WD_HLD          : IN std_logic
 	);
 END HCS3120;
 
 ARCHITECTURE Behavioral OF HCS3120 IS
 
-	SIGNAL u16k : std_logic;
-	SIGNAL SEL  : std_logic;
 	SIGNAL DSEL : std_logic_vector(1 DOWNTO 0); -- Drive Select
  	SIGNAL IRQEN : std_logic; -- IRQ Enable
-	SIGNAL DSK_ACTIVE : std_logic;
-
+	
 BEGIN 
 			-- ORIC Expansion Port Signals
-			SEL <= '1' WHEN A(7 DOWNTO 4) = "0001" AND IO = '0' AND A(3 DOWNTO 2) /= "11" ELSE '0';
 			nIRQ <= '0' WHEN WD_IRQ = '1' AND IRQEN = '1' ELSE '1'; 
           
-         DS0 <= '1' when DSEL = "00" else '0';
-			DS1 <= '1' when DSEL = "01" else '0';
-			DS2 <= '1' when DSEL = "10" else '0';
-			DS3 <= '1' when DSEL = "11" else '0';
+         DS0 <= '1' when DSEL = "00" and WD_HLD ='1' else '0';
+			DS1 <= '1' when DSEL = "01" and WD_HLD ='1' else '0';
+			DS2 <= '1' when DSEL = "10" and WD_HLD ='1' else '0';
+			DS3 <= '1' when DSEL = "11" and WD_HLD ='1' else '0';
 			
 			-- Data Bus Control.
 			PROCESS (RnW, WD_DRQ, WD_IRQ, WD_REn, CS318n,CS314n,FDC_DAL_OUT )

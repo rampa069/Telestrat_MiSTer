@@ -31,8 +31,9 @@ ENTITY HCS3119 IS
       
 	   -- CS Lines	
       CS300n             : OUT std_logic;
---		CS310n             : OUT STD_LOGIC;
+--		CS310n             : OUT STD_LOGIC;      
 		CS314n             : OUT STD_LOGIC;
+		CS318n             : OUT STD_LOGIC;
 		CS31Cn             : OUT STD_LOGIC;
       CS320n             : OUT std_logic;
 		CS1793n            : OUT std_logic;
@@ -72,8 +73,10 @@ ARCHITECTURE Behavioral OF HCS3119 IS
 	
 	
 	SIGNAL EDGE_DETECT : STD_LOGIC_VECTOR(1 DOWNTO 0);
+	SIGNAL ADR: std_logic_vector (7 downto 0);
 
 begin
+         ADR <= A(7 downto 2) & "00";
 			-- Reset
 			PROCESS (PH2,RnW,WD_REn_INT,CS1793n_INT) IS
 			BEGIN
@@ -101,12 +104,13 @@ begin
 
 			
 			--
-			CS300n     <= '0' when A(7 downto 4) = "0000" AND IO = '0' else '1';
-			CS320n     <= '0' when A(7 downto 4) = "0010" AND IO = '0' else '1';
+			CS300n     <= '0' when (ADR>=x"00") and (ADR<=x"0F") AND IO = '0' else '1';
+			CS320n     <= '0' when (ADR>=x"20") and (ADR<=x"2F") AND IO = '0' else '1';
 			
-			CS1793n_INT<= '0' WHEN A(7 DOWNTO 2) = "000100" AND IO = '0' ELSE '1';
-			CS314n     <= '0' WHEN (A(7 DOWNTO 2) = "000101" OR A(7 DOWNTO 2) = "000110") AND IO = '0' ELSE '1';
-			CS31Cn     <= '0' WHEN A(7 DOWNTO 2) = "000111" AND IO = '0' ELSE '1';
+			CS1793n_INT<= '0' WHEN (ADR>=x"10") and (ADR<=x"13") AND IO = '0' ELSE '1';
+			CS314n     <= '0' WHEN (ADR>=x"14") and (ADR<=x"17") AND IO = '0' ELSE '1';
+			CS318n     <= '0' WHEN (ADR>=x"18") and (ADR<=x"1B") AND IO = '0' ELSE '1';
+			CS31Cn     <= '0' WHEN (ADR>=x"1C") and (ADR<=x"1F") AND IO = '0' ELSE '1';
 			
 			-- 
 			U16K <= '1' when A(15 downto 14) = "11" and MAPn_INT ='1'   else '0';

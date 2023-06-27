@@ -7,6 +7,10 @@
 `default_nettype none
 
 module emu
+  #
+  (
+   parameter  TOT_DISKS = 2
+   )
 (
 	//Master input clock
 	input         CLK_50M,
@@ -147,7 +151,7 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0; 
  
-assign LED_USER  = ioctl_download | fdd1_led | fdd2_led| tape_adc_act;
+assign LED_USER  = ioctl_download | fdd_led|tape_adc_act;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0; 
@@ -240,15 +244,15 @@ wire  [1:0] buttons;
 wire        forced_scandoubler;
 wire [127:0] status;
 
-wire [31:0] sd_lba[2];
-wire  [1:0] sd_rd;
-wire  [1:0] sd_wr;
-wire  [1:0] sd_ack;
+wire [31:0] sd_lba[TOT_DISKS];
+wire  [TOT_DISKS-1:0] sd_rd;
+wire  [TOT_DISKS-1:0] sd_wr;
+wire  [TOT_DISKS-1:0] sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din[2];
+wire  [7:0] sd_buff_din[TOT_DISKS];
 wire        sd_buff_wr;
-wire  [3:0] img_mounted;
+wire  [TOT_DISKS-1:0] img_mounted;
 wire [31:0] img_size;
 wire        img_readonly;
 
@@ -264,7 +268,7 @@ reg  [31:0] status_out;
 wire [21:0] gamma_bus;
 wire        freeze_sync;
 
-hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(TOT_DISKS)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -565,38 +569,38 @@ assign tape_in = tapeUseADC ? tape_adc : casdout;
 wire       wp = img_readonly;
 wire       CS1793n;
 wire       DS0,DS1,DS2,DS3;
-reg [7:0]  fdc_dal_out; 
 wire       SSEL;
 wire       WD_REn,WD_WEn;
 wire       WD_CLK;
 wire       WD_RESET;
-reg        fdd_irq;
-reg        fdd_drq;
 
-
-//assign fdc_dal_out = fdc_dal_1_out;
-//assign fdd_irq = fdd1_irq;
-//assign fdd_drq = fdd1_drq;
-
-
-always @(posedge WD_CLK) begin
+reg [3:0] fdc_sel;
+always @(posedge clk_sys) begin
    case({DS3,DS2,DS1,DS0})
-	 4'b0001: {fdc_dal_out,fdd_irq,fdd_drq} <= {fdc_dal_1_out,fdd1_irq,fdd1_drq};
-	 4'b0010: {fdc_dal_out,fdd_irq,fdd_drq} <= {fdc_dal_2_out,fdd2_irq,fdd2_drq};
-	 default: {fdc_dal_out,fdd_irq,fdd_drq} <= {8'hff,1'b0,1'b1};
+	 4'b0001: fdc_sel=0;
+	 4'b0010: fdc_sel=1;
+	 4'b0100: fdc_sel=2;
+	 4'b1000: fdc_sel=3;
 	endcase
 end
 
-wire [7:0] fdc_dal_1_out;
-wire       fdd1_prepare;
-wire       fdd1_irq;
-wire       fdd1_drq;
-wire       fdd1_led;
+wire [7:0] fdc_dal_out;
+wire       fdd_prepare;
+wire       fdd_irq;
+wire       fdd_drq;
+wire       fdd_led;
 
-reg  fdd1_ready = 0;
-always @(posedge clk_sys) if(img_mounted[0]) fdd1_ready <= |img_size;
+reg  [TOT_DISKS-1:0] fdd_ready;
 
-wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0001)) fdd1
+genvar                fdd_i;
+generate
+  for (fdd_i = 0; fdd_i < TOT_DISKS; fdd_i++) begin : g_IM
+    assign fdd_ready[fdd_i] = (img_mounted[fdd_i]) ? |img_size : fdd_ready[fdd_i];
+  end
+endgenerate
+
+
+wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.TOT_DISKS(TOT_DISKS)) fdd1
 (
 	.clk_sys(clk_sys),
 	.ce     (WD_CLK),
@@ -606,78 +610,32 @@ wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0001)) fdd1
 	.wr     (~WD_WEn),
 	.addr   (cpu_ad[1:0]),
 	.din    (cpu_do),
-	.dout   (fdc_dal_1_out),
-	.intrq  (fdd1_irq),
-	.drq    (fdd1_drq),
+	.dout   (fdc_dal_out),
+	.intrq  (fdd_irq),
+	.drq    (fdd_drq),
 
-	.img_mounted (img_mounted[0]),
+	.img_mounted (img_mounted),
 	.img_size    (img_size[20:0]),
-	.sd_lba      (sd_lba[0]),
-	.sd_rd       (sd_rd[0]),
-	.sd_wr       (sd_wr[0]),
-	.sd_ack      (sd_ack[0]),
+	.sd_lba      (sd_lba),
+	.sd_rd       (sd_rd),
+	.sd_wr       (sd_wr),
+	.sd_ack      (sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din (sd_buff_din[0]),
+	.sd_buff_din (sd_buff_din),
 	.sd_buff_wr (sd_buff_wr),
 
 	.wp        (wp),
 	.size_code (3'b101),
 	.layout    (0),
 	.side      (SSEL),
-	.ready     (1), //(fdd1_ready  && ~fdd1_prepare),
-	.prepare   (fdd1_prepare),
-	.busy      (fdd1_led),
-	.fdd_sel   ({DS3,DS2,DS1,DS0})
+	.ready     (fdd_ready),
+	.prepare   (fdd_prepare),
+	.busy      (fdd_led),
+	.fdd_sel   (fdc_sel)
 );
 
-
-
-
-
-wire [7:0] fdc_dal_2_out;
-wire       fdd2_prepare;
-wire       fdd2_irq;
-wire       fdd2_drq;
-wire       fdd2_led;
-
-
-reg  fdd2_ready = 0;
-always @(posedge clk_sys) if(img_mounted[1]) fdd2_ready <= |img_size;
-
-wd17xx #(.EDSK(1),.MODEL(3),.CLK_EN(24000),.F_NUM(4'b0010)) fdd2
-(
-	.clk_sys(clk_sys),
-	.ce     (WD_CLK),
-	.reset  (WD_RESET),
-	.io_en  (~CS1793n),
-	.rd     (~WD_REn),
-	.wr     (~WD_WEn),
-	.addr   (cpu_ad[1:0]),
-	.din    (cpu_do),
-	.dout   (fdc_dal_2_out),
-	.intrq  (fdd2_irq),
-	.drq    (fdd2_drq),
-
-	.img_mounted (img_mounted[1]),
-	.img_size    (img_size[20:0]),
-	.sd_lba      (sd_lba[1]),
-	.sd_rd       (sd_rd[1]),
-	.sd_wr       (sd_wr[1]),
-	.sd_ack      (sd_ack[1]),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din (sd_buff_din[1]),
-	.sd_buff_wr  (sd_buff_wr),
-	.wp          (wp),
-
-	.size_code (3'b101),
-	.layout    (0),
-	.side      (SSEL),
-	.ready     (1), //(fdd2_ready  && ~fdd2_prepare),
-	.prepare   (fdd2_prepare),
-	.busy      (fdd2_led),
-	.fdd_sel   ({DS3,DS2,DS1,DS0})
-);
 
 endmodule
+
+

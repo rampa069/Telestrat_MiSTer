@@ -134,6 +134,7 @@ architecture RTL of telestrat is
 	-- CS 
 	SIGNAL CS300n : STD_LOGIC;
 	SIGNAL CS314n : STD_LOGIC;
+	SIGNAL CS318n : STD_LOGIC;
 	SIGNAL CS31Cn : STD_LOGIC;
 	SIGNAL CS320n : STD_LOGIC;
 	SIGNAL CS0n   : STD_LOGIC;
@@ -449,6 +450,7 @@ HCS3119: work.HCS3119
 
           CS300n    => CS300n,
 			 CS314n    => CS314n,
+			 CS318n    => CS318n,
 			 CS31Cn    => CS31Cn,
           CS320n    => CS320n,
 			 CS1793n   => CS1793n,
@@ -480,6 +482,7 @@ HCS3120: work.HCS3120
           nIRQ      => cont_irq,                            -- 6502 /IRQ
           IO        => ula_CSIOn,                           -- Oric I/O 
  			 CS314n    => CS314n,
+			 CS318n    => CS318n,
 			 CS1793n   => CS1793n,
           --IOCTRL    => IOCONTn,                             -- Oric I/O Control           
                                                             -- Additional MCU Interface Lines
@@ -573,7 +576,8 @@ rom_ad <= not via2_pa_out (1 downto 0) & cpu_ad (13 downto 0);
   
 
 cpu_di <= VIA1_DO          when cs300n = '0' else 
-          CONT_D_OUT       when cs314n = '0' else           
+          CONT_D_OUT       when cs314n = '0' else
+          CONT_D_OUT       when cs318n = '0' else			 
           FDC_DAL_OUT      when CS1793n = '0' else 
 			 ACIA_DO          when CS31Cn = '0' else 
 			 VIA2_DO          when CS320n = '0' else 

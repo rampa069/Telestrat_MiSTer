@@ -43,7 +43,7 @@ module wd17xx
 	input  [2:0] size_code,
 	input        layout,      // 0 = Track-Side-Sector, 1 - Side-Track-Sector
 	input        side,
-	input        ready,
+	input  [TOT_DISKS-1:0] ready,
 	
 	output       ready_n,
 	input  [3:0] fdd_sel,
@@ -52,16 +52,16 @@ module wd17xx
 	input        inuse_n,
 
 	
-	input        img_mounted, // signaling that new image has been mounted
+	input [TOT_DISKS-1:0] img_mounted, // signaling that new image has been mounted
 	input [20:0] img_size,    // size of image in bytes. 1MB MAX!
 	output       prepare,
-	output[31:0] sd_lba,
-	output reg   sd_rd,
-	output reg   sd_wr,
-	input        sd_ack,
+	output[31:0] sd_lba [TOT_DISKS],
+	output reg [TOT_DISKS-1:0] sd_rd,
+	output reg [TOT_DISKS-1:0] sd_wr,
+	input      [TOT_DISKS-1:0] sd_ack,
 	input  [8:0] sd_buff_addr,
 	input  [7:0] sd_buff_dout,
-	output [7:0] sd_buff_din,
+	output [7:0] sd_buff_din [TOT_DISKS],
 	input        sd_buff_wr
 );
 
@@ -77,7 +77,7 @@ module wd17xx
 parameter MODEL           = 0;         // 0 - wd1770, 1 - fd1771, 2 - wd1772, 3 = wd1773/fd1793
 parameter EDSK            = 0;         // Supports Amstrad EDSK preservation format
 parameter CLK_EN          = 16'd32000; // in kHz
-parameter F_NUM           = 4'b0001;   // A:0001, B:0010, C:0100, D:1000
+parameter TOT_DISKS       = 2;         // floppy drives under the controller
 
 reg[7:0] cmd;
 wire [32:0] step_rate_clk = 
@@ -96,8 +96,11 @@ assign dout      = q;
 assign drq       = s_drq;
 assign busy      = s_busy;
 assign intrq     = s_intrq;
-assign sd_lba    = scan_active ? scan_addr[20:9] : buff_a[20:9] + sd_block;
-assign prepare   = EDSK ? scan_active  : img_mounted;
+assign prepare   = EDSK ? scan_active  : img_mounted[fdd_sel];
+
+always @(posedge clk_sys) begin
+     sd_lba[fdd_sel] <= scan_active ? scan_addr[20:9] : buff_a[20:9] + sd_block;
+end
 
 
 reg   [7:0] sectors_per_track, edsk_spt = 0;
@@ -106,27 +109,32 @@ reg  [11:0] byte_addr;
 reg  [20:0] buff_a;
 reg   [1:0] wd_size_code;
 
-wire  [7:0] buff_dout;
+wire  [7:0] buff_dout[TOT_DISKS];
 reg   [1:0] sd_block = 0;
 reg         format;
 reg         verify;
 
 
-wd177x_dpram sbuf
-(
+genvar                tla_i;
+generate
+  for (tla_i = 0; tla_i < TOT_DISKS; tla_i++) begin : g_TL
+
+  wd177x_dpram 
+  (
 	.clock(clk_sys),
 
 	.address_a({sd_block, sd_buff_addr}),
 	.data_a(sd_buff_dout),
-	.wren_a(sd_buff_wr & sd_ack),
-	.q_a(sd_buff_din),
+	.wren_a(sd_buff_wr & sd_ack[tla_i]),
+	.q_a(sd_buff_din[tla_i]),
 
 	.address_b(scan_active ? img_size[19] ? scan_addr[9:0] : scan_addr[8:0] : byte_addr),
-	//.address_b(scan_active ? scan_addr[8:0] : byte_addr),
 	.data_b(format ? 8'd0 : din),
 	.wren_b(wre & buff_wr & (addr == A_DATA) & ~scan_active),
-	.q_b(buff_dout)
-);
+	.q_b(buff_dout[tla_i])
+  );
+  end // block: g_TL
+endgenerate
 
 reg buff_wr;
 
@@ -237,7 +245,7 @@ wire        s_readonly = wp;
 reg			s_crcerr;
 reg			s_headloaded, RNF, s_index;  // mode 1
 reg			s_lostdata, s_wrfault; 		  // mode 2,3
-wire        s_ready = ~ready;
+wire        s_ready = ~ready[fdd_sel];
 wire        s_motor; 
 integer     s_motor_timer;
 reg         s_motor_tick;
@@ -274,18 +282,11 @@ wire [7:0] wdreg_stat_tmp ={ (MODEL == 1 || MODEL == 3) ? s_ready : s_motor,
 									s_busy};
 
 								
-wire [7:0] wdreg_status = wdreg_stat_tmp; //(fdd_sel== F_NUM && ready)? wdreg_stat_tmp :(MODEL == 1 || MODEL == 3)? 8'd128: 8'b0;									
-									
-
-
-
+wire [7:0] wdreg_status = wdreg_stat_tmp; 
 reg   [7:0] read_addr[6];
 reg   [7:0] q;
-
-
 reg         buff_rd;
 reg         step_direction; // last step direction
-
 reg   [7:0] disk_track;		 // "real" heads position
 reg  [10:0]	data_length;	 // this many bytes to transfer during read/write ops
 io_state_t  state = STATE_IDLE;
@@ -298,7 +299,6 @@ reg         watchdog_set;
 wire        watchdog_bark = (wd_timer == 0);
 reg  [15:0] wd_timer;
 
-
 always @(posedge clk_sys) begin
      if (s_motor_tick) s_motor_timer <= 12800000; else if (s_motor_timer) s_motor_timer<=s_motor_timer-1;
 	  s_motor <= s_motor_timer !=0 ;
@@ -309,7 +309,7 @@ always @* begin
 		A_STATUS: q = wdreg_status;
 		A_TRACK:  q = wdreg_track ;
 		A_SECTOR: q = wdreg_sector;
-		A_DATA:   q = (state == STATE_IDLE) ? wdreg_data : buff_rd ?  buff_dout : read_addr[byte_addr[2:0]];
+		A_DATA:   q = (state == STATE_IDLE) ? wdreg_data : buff_rd ?  buff_dout[fdd_sel] : read_addr[byte_addr[2:0]];
 	endcase
 end
 
@@ -334,7 +334,7 @@ wire        rde = rd & io_en;
 wire        wre = wr & io_en;
 
 always @(posedge clk_sys) begin
-    if (img_mounted)          disk_change_n <= 0;
+    if (img_mounted[fdd_sel])          disk_change_n <= 0;
     if (~disk_change_reset_n) disk_change_n <= 1;
 end
 
@@ -353,16 +353,16 @@ always @(posedge clk_sys) begin
 	reg       multisector;
 	reg       write;
 	reg [5:0] ack;
-	reg       sd_busy;
-	reg       old_mounted;
+	reg [3:0] sd_busy;
+	reg [3:0] old_mounted;
 	reg [3:0] scan_state;
 	reg [1:0] scan_cnt;
 	reg [1:0] blk_max;
 	
 	
 	
-		old_mounted <= img_mounted;
-		if(old_mounted && ~img_mounted) begin
+		old_mounted[fdd_sel] <= img_mounted[fdd_sel];
+		if(old_mounted[fdd_sel] && ~img_mounted[fdd_sel]) begin
 			if(EDSK) begin
 				scan_active<= 1;  
 				scan_addr  <= 0;
@@ -374,6 +374,14 @@ always @(posedge clk_sys) begin
 			end
 			disk_size <= img_size[20:0];
 			layout_r  <= layout;
+			s_headloaded <= 1;
+			wdreg_sector <=1;
+			ra_sector <= 1;
+			s_wpe <= 1;
+ 		   {s_headloaded, RNF, s_crcerr, s_intrq} <= 0;
+ 		   {s_wrfault, s_lostdata} <= 0;
+		   s_drq_busy <= 0;
+
 		end
 
 	if(reset & ~scan_active) begin
@@ -396,25 +404,25 @@ always @(posedge clk_sys) begin
 		s_drq_busy <= 0;
 		watchdog_set <= 0;
 		seektimer <= 'h3FF;
-		{ack, sd_wr, sd_rd, sd_busy} <= 0;
+		{ack, sd_wr[fdd_sel], sd_rd[fdd_sel], sd_busy[fdd_sel]} <= 0;
 		ra_sector <= 1;
 	end else if(ce) begin
 
-		ack <= {ack[4:0], sd_ack};
-		if(ack[5:4] == 'b01) {sd_rd,sd_wr} <= 0;
-		if(ack[5:4] == 'b10) sd_busy <= 0;
+		ack <= {ack[4:0], sd_ack[fdd_sel]};
+		if(ack[5:4] == 'b01) {sd_rd[fdd_sel],sd_wr[fdd_sel]} <= 0;
+		if(ack[5:4] == 'b10) sd_busy[fdd_sel] <= 0;
 
 		if(scan_active) begin
 			if(scan_addr >= img_size) scan_active <= 0;
 			else begin
 				case(scan_state)
 					0:	begin
-							sd_rd   <= 1;
-							sd_busy <= 1;
+							sd_rd[fdd_sel]   <= 1;
+							sd_busy[fdd_sel] <= 1;
 							scan_wr <= 0;
 							scan_state <= 1;
 						end
-					1: if(!sd_busy) begin
+					1: if(!sd_busy[fdd_sel]) begin
 							scan_wr    <= 1;
 							scan_cnt   <= 1;
 							scan_state <= 2;
@@ -522,13 +530,13 @@ always @(posedge clk_sys) begin
 				end
 			STATE_WAIT_READ_1:
 				begin
-					sd_busy <= 1;
-					sd_rd   <= 1;
+					sd_busy[fdd_sel] <= 1;
+					sd_rd[fdd_sel]   <= 1;
 					state   <= STATE_WAIT_READ_2;
 				end
 			STATE_WAIT_READ_2:
 				begin
-					if(!sd_busy) begin
+					if(!sd_busy[fdd_sel]) begin
 						sd_block <= sd_block + 1'd1;
 						state <= write ? STATE_WRITE : STATE_READ;
 						if(sd_block < blk_max) state <= STATE_WAIT_READ_1;
@@ -587,13 +595,13 @@ always @(posedge clk_sys) begin
 				end
 			STATE_WAIT_WRITE_1:
 				begin
-					sd_busy <= 1;
-					sd_wr   <= 1;
+					sd_busy[fdd_sel] <= 1;
+					sd_wr[fdd_sel]   <= 1;
 					state   <= STATE_WAIT_WRITE_2;
 				end
 			STATE_WAIT_WRITE_2:
 				begin
-					if(!sd_busy) begin
+					if(!sd_busy[fdd_sel]) begin
 						sd_block <= sd_block + 1'd1;
 						if(sd_block < blk_max) state <= STATE_WAIT_WRITE_1;
 						else begin
@@ -856,7 +864,7 @@ reg  [7:0] spt_size = 0;
 
 generate
 	if(EDSK) begin
-		wire [7:0] scan_data = buff_dout;
+		wire [7:0] scan_data = buff_dout[fdd_sel];
 		reg [54:0] edsk[1992];
 		reg  [7:0] spt[166];
 

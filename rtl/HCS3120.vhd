@@ -33,6 +33,7 @@ ENTITY HCS3120 IS
 		nIRQ            : OUT std_logic; -- 6502 /IRQ
 		IO              : IN std_logic; -- Oric I/O
 		CS314n          : IN std_logic; -- Microdisk registers
+		CS318n          : IN std_logic; -- Microdisk registers
 		CS1793n         : IN std_logic; -- WD1793 chip select
 		--IOCTRL          : OUT std_logic; -- Oric I/O Control  
 
@@ -72,11 +73,11 @@ BEGIN
 			DS3 <= '1' when DSEL = "11" else '0';
 			
 			-- Data Bus Control.
-			PROCESS (RnW, WD_DRQ, WD_IRQ, WD_REn, A,FDC_DAL_OUT )
+			PROCESS (RnW, WD_DRQ, WD_IRQ, WD_REn, CS318n,CS314n,FDC_DAL_OUT )
 			BEGIN
-					IF A(3 DOWNTO 2) = "10" THEN
+					IF Cs318n = '0' THEN
 					   DO <= (not WD_DRQ) & "-------"; 
-					ELSIF A(3 DOWNTO 2) = "01" THEN
+					ELSIF CS314n = '0' THEN
 						DO <= (NOT WD_IRQ) & "-------";
 					ELSIF WD_REn = '0' THEN
 						DO <=FDC_DAL_OUT;

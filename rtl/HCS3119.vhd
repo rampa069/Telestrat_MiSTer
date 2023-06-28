@@ -31,12 +31,12 @@ ENTITY HCS3119 IS
       
 	   -- CS Lines	
       CS300n             : OUT std_logic;
---		CS310n             : OUT STD_LOGIC;      
 		CS314n             : OUT STD_LOGIC;
 		CS318n             : OUT STD_LOGIC;
 		CS31Cn             : OUT STD_LOGIC;
       CS320n             : OUT std_logic;
 		CS1793n            : OUT std_logic;
+		CS360n             : OUT std_logic;
       CS0n               : OUT std_logic;
       CS1n               : OUT std_logic;
 		CS2n               : OUT std_logic;
@@ -111,6 +111,7 @@ begin
 			CS314n     <= '0' WHEN (ADR>=x"14") and (ADR<=x"17") AND IO = '0' ELSE '1';
 			CS318n     <= '0' WHEN (ADR>=x"18") and (ADR<=x"1B") AND IO = '0' ELSE '1';
 			CS31Cn     <= '0' WHEN (ADR>=x"1C") and (ADR<=x"1F") AND IO = '0' ELSE '1';
+			CS360n     <= '0' WHEN (ADR>=x"60") and (ADR<=x"71") AND IO = '0' ELSE '1'; 
 			
 			-- 
 			U16K <= '1' when A(15 downto 14) = "11" and MAPn_INT ='1'   else '0';

@@ -267,6 +267,7 @@ reg  [31:0] status_out;
 
 wire [21:0] gamma_bus;
 wire        freeze_sync;
+wire [64:0] rtc;
 
 hps_io #(.CONF_STR(CONF_STR), .VDNUM(TOT_DISKS)) hps_io
 (
@@ -280,6 +281,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(TOT_DISKS)) hps_io
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.status(status),
+	.RTC(rtc),
 
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
@@ -380,6 +382,8 @@ telestrat telestrat
 	.K7_TAPEIN        (tape_in ),
 	.K7_TAPEOUT       (tape_out),
 	.K7_REMOTE        (cas_relay),
+	
+//	.RTC              (rtc),
 
 	.ram_ad           (ram_ad),
 	.ram_d            (ram_d),
@@ -514,10 +518,6 @@ reg  [15:0] tape_end;
 reg         tape_loaded = 1'b0;
 reg         ioctl_downlD;
 
-//Tape Writting - Not Implemented ATM - Flandango
-//reg         tape_wr;
-//reg [7:0]   tape_dout;
-
 
 wire [15:0] tape_addr;
 wire [7:0]  tape_data;
@@ -592,13 +592,19 @@ wire       fdd_drq;
 wire       fdd_led;
 wire       fdd_hld;
 
-reg  [TOT_DISKS-1:0] fdd_ready;
+reg [TOT_DISKS-1:0] fdd_ready;
+reg [TOT_DISKS-1:0] old_mounted;
 
 genvar                fdd_i;
 generate
   for (fdd_i = 0; fdd_i < TOT_DISKS; fdd_i++) begin : g_IM
-    assign fdd_ready[fdd_i] = (img_mounted[fdd_i]) ? |img_size : fdd_ready[fdd_i];
-  end
+		
+	always @(posedge clk_sys) begin
+	   old_mounted[fdd_i] <= img_mounted[fdd_i];
+    	if(RESET) fdd_ready[fdd_i] <= 1'b1;
+	     else if(~old_mounted[fdd_i] & img_mounted[fdd_i]) fdd_ready[fdd_i] <= |img_size;
+	end
+ end
 endgenerate
 
 

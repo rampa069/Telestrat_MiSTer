@@ -25,7 +25,7 @@ ENTITY HCS3120 IS
 		-- Oric Expansion Port Signals
 		DI              : IN std_logic_vector(7 DOWNTO 0); -- 6502 Data Bus
 		DO              : OUT std_logic_vector(7 DOWNTO 0); -- 6502 Data Bus
-		FDC_DAL_OUT     : IN std_logic_vector(7 DOWNTO 0);
+		--FDC_DAL_OUT     : IN std_logic_vector(7 DOWNTO 0);
  		A               : IN std_logic_vector(15 DOWNTO 0); -- 6502 Address Bus
 	
 		
@@ -70,21 +70,19 @@ BEGIN
 			DS3 <= '1' when DSEL = "11" and WD_HLD ='1' else '0';
 			
 			-- Data Bus Control.
-			PROCESS (RnW, WD_DRQ, WD_IRQ, WD_REn, CS318n,CS314n,FDC_DAL_OUT )
+			PROCESS (RnW, WD_DRQ, WD_IRQ, CS318n,CS314n)
 			BEGIN
 					IF Cs318n = '0' THEN
 					   DO <= (not WD_DRQ) & "-------"; 
 					ELSIF CS314n = '0' THEN
 						DO <= (NOT WD_IRQ) & "-------";
-					ELSIF WD_REn = '0' THEN
-						DO <=FDC_DAL_OUT;
 					ELSE
 					   DO <= "--------"; 
 					END IF;
 			END PROCESS; 
 			
  			-- Control Register.
-			PROCESS (WD_CLK,CS314n,A,RnW,DI,nRESET,DSEL)
+			PROCESS (WD_CLK,CS314n,RnW,DI,nRESET,DSEL)
 				BEGIN
 					IF nRESET = '0' THEN
 						DSEL  <= "00";

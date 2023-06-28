@@ -22,6 +22,7 @@ entity telestrat is
     K7_TAPEIN         : in    std_logic;
     K7_TAPEOUT        : out   std_logic;
     K7_REMOTE         : out   std_logic;
+--	 RTC               : in    std_logic_vector(63 downto 0);
 	 PSG_OUT           : out   unsigned(13 downto 0);
     PSG_OUT_A         : out   unsigned(11 downto 0);
     PSG_OUT_B         : out   unsigned(11 downto 0);
@@ -138,6 +139,7 @@ architecture RTL of telestrat is
 	SIGNAL CS318n : STD_LOGIC;
 	SIGNAL CS31Cn : STD_LOGIC;
 	SIGNAL CS320n : STD_LOGIC;
+	SIGNAL CS360n : STD_LOGIC;
 	SIGNAL CS0n   : STD_LOGIC;
 	SIGNAL CS1n   : STD_LOGIC;
 	SIGNAL CS2n   : STD_LOGIC;
@@ -145,7 +147,6 @@ architecture RTL of telestrat is
 	SIGNAL CS4n   : STD_LOGIC;
 	SIGNAL CS5n   : STD_LOGIC;
 	SIGNAL CS6n   : STD_LOGIC;
---	SIGNAL CS1793n: STD_LOGIC;
 	SIGNAL ROM_CSn: STD_LOGIC;
 	-- ACIA
 	signal ACIA_DO: STD_LOGIC_VECTOR(7 downto 0);
@@ -454,6 +455,7 @@ HCS3119: work.HCS3119
 			 CS318n    => CS318n,
 			 CS31Cn    => CS31Cn,
           CS320n    => CS320n,
+			 CS360n    => CS360n,
 			 CS1793n   => CS1793n,
           CS0n      => CS0n,
           CS1n      => CS1n,
@@ -476,7 +478,7 @@ HCS3120: work.HCS3120
 			 WD_CLK    => WD_CLK,
 																				-- Oric Expansion Port Signals
           DI        => cpu_do,                              -- 6502 Data Bus
-			 FDC_DAL_OUT => FDC_DAL_OUT,
+			 --FDC_DAL_OUT => FDC_DAL_OUT,
           DO        => CONT_D_OUT,                          -- 6502 Data Bus
           A         => cpu_ad(15 downto 0),                 -- 6502 Address Bus
           RnW       => cpu_rw,                              -- 6502 Read-/Write
@@ -582,7 +584,8 @@ cpu_di <= VIA1_DO          when cs300n = '0' else
           CONT_D_OUT       when cs318n = '0' else			 
           FDC_DAL_OUT      when CS1793n = '0' else 
 			 ACIA_DO          when CS31Cn = '0' else 
-			 VIA2_DO          when CS320n = '0' else 
+			 VIA2_DO          when CS320n = '0' else
+--			 SRAM_DO          when CS360n = '0' else -- placeholder for rtc
           ROM_Q            when ROM_CSn = '0' else
 			 RAM_BANK4_DO     when CS3n = '0' else
 			 RAM_BANK3_DO     when CS2n = '0' else
